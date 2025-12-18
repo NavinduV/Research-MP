@@ -1,0 +1,8 @@
+make the environment
+python -m venv env
+
+installing packages:
+pip install -r requirements.txt
+
+Server start:
+uvicorn src.app.main:app --reload
