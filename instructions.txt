@@ -6,3 +6,6 @@ pip install -r requirements.txt
 
 Server start:
 uvicorn src.app.main:app --reload --host 127.0.0.1 --port 8000
+
+Run label sudio:
+label-studio
