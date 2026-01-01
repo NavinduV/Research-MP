@@ -3,10 +3,78 @@ import cv2
 import json
 import glob
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 # Disable OpenCL globally to avoid GPU-related errors during stitching
 cv2.ocl.setUseOpenCL(False)
+
+
+def calculate_image_brightness(img_path: str) -> float:
+    """Calculate the average brightness of an image.
+    
+    Args:
+        img_path: Path to the image file
+    
+    Returns:
+        Average brightness value (0-255)
+    """
+    img = cv2.imread(img_path)
+    if img is None:
+        return 0.0
+    
+    # Convert to grayscale and calculate mean brightness
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    brightness = np.mean(gray)
+    return brightness
+
+
+def group_images_by_brightness(folder_path: str, tolerance: int = 15, 
+                               exts: Tuple[str, ...] = ('.png', '.jpg', '.jpeg')) -> Dict[str, List[Dict]]:
+    """Load images from folder and group them by brightness level.
+    
+    Args:
+        folder_path: Path to folder containing images
+        tolerance: Brightness tolerance for grouping (default 15)
+        exts: Image file extensions
+    
+    Returns:
+        Dictionary with brightness groups as keys and list of image info as values
+    """
+    files = sorted([p for p in glob.glob(os.path.join(folder_path, '*')) if p.lower().endswith(exts)])
+    
+    image_info = []
+    for filepath in files:
+        brightness = calculate_image_brightness(filepath)
+        image_info.append({
+            'path': filepath,
+            'filename': os.path.basename(filepath),
+            'brightness': brightness
+        })
+    
+    # Group by brightness with tolerance
+    brightness_groups = {}
+    for img_info in image_info:
+        brightness = img_info['brightness']
+        
+        # Find existing group within tolerance
+        found_group = False
+        for group_key in brightness_groups:
+            if abs(brightness - group_key) <= tolerance:
+                brightness_groups[group_key].append(img_info)
+                found_group = True
+                break
+        
+        # Create new group if not found
+        if not found_group:
+            brightness_groups[brightness] = [img_info]
+    
+    # Sort groups by brightness key
+    sorted_groups = {}
+    for key in sorted(brightness_groups.keys()):
+        brightness_level = round(key)
+        sorted_groups[brightness_level] = brightness_groups[key]
+    
+    return sorted_groups
 
 
 def load_images_from_folder(folder_path: str, exts: Tuple[str, ...] = ('.png', '.jpg', '.jpeg')) -> List[np.ndarray]:

@@ -1,0 +1,13 @@
+{
+  "original_size": [
+    2599,
+    2573
+  ],
+  "output_size": [
+    2599,
+    2573
+  ],
+  "scale": 1.0,
+  "image_path": "dev-test/stitched/s7-8.png",
+  "label_path": "dev-test/stitched/s7-8.txt"
+}
