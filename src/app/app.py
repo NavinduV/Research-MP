@@ -218,6 +218,17 @@ async def stitch_form():
                         </label>
                     </div>
                     
+                    <div class="form-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="advanced_mode" value="true" id="advanced_mode_check">
+                            <span class="checkmark"></span>
+                            <strong>Advanced Mode: Select 3+ images for superior accuracy</strong>
+                        </label>
+                        <p style="margin-left: 30px; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
+                            Uses enhanced stitching algorithms with multiple feature detection strategies and quality validation for more reliable results.
+                        </p>
+                    </div>
+                    
                     <button type="submit" class="btn">
                         <span class="btn-icon">📊</span> Analyze & Select Images
                     </button>
@@ -232,7 +243,7 @@ async def stitch_form():
 
 
 @app.post("/stitch/select-images", response_class=HTMLResponse)
-async def select_images_form(input_folder: str = Form(...), auto_select: bool = Form(False)):
+async def select_images_form(input_folder: str = Form(...), auto_select: bool = Form(False), advanced_mode: bool = Form(False)):
     """Analyze images in folder by brightness and show selection interface."""
     import traceback
     
@@ -314,11 +325,14 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
             # Sort by filename to try and get sequence (assuming sequence implies overlap)
             best_images.sort(key=lambda x: x['filename'])
             
-            # Pick up to 3 images
-            # If we have many images, picking 3 evenly spaced might be better, but for now let's pick first 3
-            # or if we have exactly 3, pick them.
-            # Let's pick the first 3 for now as a simple heuristic for "best" in a sequence
-            count = min(len(best_images), 3)
+            # In advanced mode, select more images for better stitching
+            if advanced_mode:
+                # Select up to 8 images for comprehensive coverage
+                count = min(len(best_images), 8)
+            else:
+                # Pick up to 3 images
+                count = min(len(best_images), 3)
+            
             for i in range(count):
                 pre_selected_paths.append(best_images[i]['path'])
 
@@ -346,7 +360,7 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                 
                 brightness_html += f"""
                     <label class="image-card">
-                        <input type="checkbox" name="img_selection" value="{img_info['path']}" onchange="updateLeftMiddleRight()" {is_checked}>
+                        <input type="checkbox" name="img_selection" value="{img_info['path']}" onchange="updateSelection()" {is_checked}>
                         <div class="image-content">
                             <div class="image-preview-container">
                                 <img src="{img_url}" class="image-preview" loading="lazy" alt="{img_info['filename']}">
@@ -474,7 +488,19 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                         z-index: 100;
                     }}
                     
-                    .selection-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1.5rem; }}
+                    .mode-indicator {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 0.5rem 1rem;
+                        border-radius: 8px;
+                        text-align: center;
+                        margin-bottom: 1rem;
+                        font-weight: 600;
+                        font-size: 0.9rem;
+                    }}
+                    
+                    .selection-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; max-height: 200px; overflow-y: auto; }}
+                    .selection-grid.standard {{ grid-template-columns: repeat(3, 1fr); max-height: none; }}
                     .selection-slot {{ background: #f8fafc; border: 2px dashed var(--border); border-radius: 8px; padding: 1rem; text-align: center; }}
                     .selection-slot.filled {{ border-style: solid; border-color: var(--success); background: #ecfdf5; }}
                     .slot-label {{ font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600; }}
@@ -544,58 +570,85 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                     }}
                 </style>
                 <script>
-                    function updateLeftMiddleRight() {{
-                        const leftInput = document.getElementById('left_image');
-                        const middleInput = document.getElementById('middle_image');
-                        const rightInput = document.getElementById('right_image');
-                        
-                        const leftDisplay = document.getElementById('left_display');
-                        const middleDisplay = document.getElementById('middle_display');
-                        const rightDisplay = document.getElementById('right_display');
-                        
-                        const leftSlot = document.getElementById('left_slot');
-                        const middleSlot = document.getElementById('middle_slot');
-                        const rightSlot = document.getElementById('right_slot');
-                        
-                        // Reset
-                        leftInput.value = ""; middleInput.value = ""; rightInput.value = "";
-                        leftDisplay.textContent = "Select an image"; middleDisplay.textContent = "Select an image"; rightDisplay.textContent = "Select an image";
-                        leftSlot.classList.remove('filled'); middleSlot.classList.remove('filled'); rightSlot.classList.remove('filled');
-                        
-                        // Get all checked inputs
+                    const ADVANCED_MODE = {str(advanced_mode).lower()};
+                    const MIN_IMAGES = 3;
+                    const MAX_IMAGES_ADVANCED = 10;
+                    
+                    function updateSelection() {{
                         const allChecked = Array.from(document.querySelectorAll('input[name="img_selection"]:checked'));
+                        const selectionGrid = document.getElementById('selection_grid');
+                        const selectedImagesInput = document.getElementById('selected_images');
                         
-                        if (allChecked.length > 0) {{
-                            const imgPath = allChecked[0].value;
-                            const filename = imgPath.split(/[\\\\/]/).pop();
-                            leftInput.value = imgPath;
-                            leftDisplay.textContent = filename;
-                            leftSlot.classList.add('filled');
-                        }}
+                        // Update hidden input with all selected image paths
+                        selectedImagesInput.value = allChecked.map(cb => cb.value).join('|||');
                         
-                        if (allChecked.length > 1) {{
-                            const imgPath = allChecked[1].value;
-                            const filename = imgPath.split(/[\\\\/]/).pop();
-                            middleInput.value = imgPath;
-                            middleDisplay.textContent = filename;
-                            middleSlot.classList.add('filled');
-                        }}
+                        // Clear and rebuild selection grid
+                        selectionGrid.innerHTML = '';
                         
-                        if (allChecked.length > 2) {{
-                            const imgPath = allChecked[2].value;
-                            const filename = imgPath.split(/[\\\\/]/).pop();
-                            rightInput.value = imgPath;
-                            rightDisplay.textContent = filename;
-                            rightSlot.classList.add('filled');
-                        }}
-                        
-                        const canSubmit = leftInput.value && middleInput.value && rightInput.value;
-                        document.getElementById('submit_btn').disabled = !canSubmit;
-                        
-                        if (canSubmit) {{
-                            document.getElementById('submit_btn').innerHTML = "🚀 Run Stitching Pipeline";
+                        if (ADVANCED_MODE) {{
+                            // Advanced mode: show all selected images dynamically
+                            allChecked.forEach((checkbox, index) => {{
+                                const imgPath = checkbox.value;
+                                const filename = imgPath.split(/[\\\\\\/]/).pop();
+                                const slot = document.createElement('div');
+                                slot.className = 'selection-slot filled';
+                                slot.innerHTML = `
+                                    <div class="slot-label">Image ${{index + 1}}</div>
+                                    <div class="slot-value" title="${{filename}}">${{filename}}</div>
+                                `;
+                                selectionGrid.appendChild(slot);
+                            }});
+                            
+                            // Update submit button
+                            const submitBtn = document.getElementById('submit_btn');
+                            const canSubmit = allChecked.length >= MIN_IMAGES;
+                            submitBtn.disabled = !canSubmit;
+                            
+                            if (allChecked.length > MAX_IMAGES_ADVANCED) {{
+                                submitBtn.innerHTML = `⚠️ Too many images (${{allChecked.length}}/${{MAX_IMAGES_ADVANCED}})`;
+                                submitBtn.disabled = true;
+                            }} else if (canSubmit) {{
+                                submitBtn.innerHTML = `🚀 Stitch ${{allChecked.length}} Images (Advanced)`;
+                            }} else {{
+                                submitBtn.innerHTML = `Select at least ${{MIN_IMAGES - allChecked.length}} more image(s)`;
+                            }}
                         }} else {{
-                            document.getElementById('submit_btn').innerHTML = `Select ${{3 - allChecked.length}} more image(s)`;
+                            // Standard mode: fixed 3 slots
+                            selectionGrid.className = 'selection-grid standard';
+                            const slotLabels = ['Left Image', 'Middle Image', 'Right Image'];
+                            
+                            for (let i = 0; i < 3; i++) {{
+                                const slot = document.createElement('div');
+                                slot.className = 'selection-slot';
+                                slot.id = `slot_${{i}}`;
+                                
+                                if (allChecked[i]) {{
+                                    const imgPath = allChecked[i].value;
+                                    const filename = imgPath.split(/[\\\\\\/]/).pop();
+                                    slot.classList.add('filled');
+                                    slot.innerHTML = `
+                                        <div class="slot-label">${{slotLabels[i]}}</div>
+                                        <div class="slot-value" title="${{filename}}">${{filename}}</div>
+                                    `;
+                                }} else {{
+                                    slot.innerHTML = `
+                                        <div class="slot-label">${{slotLabels[i]}}</div>
+                                        <div class="slot-value">Select an image</div>
+                                    `;
+                                }}
+                                selectionGrid.appendChild(slot);
+                            }}
+                            
+                            // Update submit button
+                            const submitBtn = document.getElementById('submit_btn');
+                            const canSubmit = allChecked.length === 3;
+                            submitBtn.disabled = !canSubmit;
+                            
+                            if (canSubmit) {{
+                                submitBtn.innerHTML = '🚀 Run Stitching Pipeline';
+                            }} else {{
+                                submitBtn.innerHTML = `Select ${{3 - allChecked.length}} more image(s)`;
+                            }}
                         }}
                     }}
                     
@@ -606,18 +659,19 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                         const statusText = document.getElementById('loadingStatus');
                         
                         overlay.classList.add('active');
-                        statusText.textContent = "Processing... This may take a while.";
+                        statusText.textContent = ADVANCED_MODE ? 
+                            'Processing with advanced algorithms... This may take several minutes.' : 
+                            'Processing... This may take a while.';
                         
                         try {{
                             const formData = new FormData(form);
-                            const response = await fetch('/stitch/run', {{
+                            const endpoint = ADVANCED_MODE ? '/stitch/run-advanced' : '/stitch/run';
+                            const response = await fetch(endpoint, {{
                                 method: 'POST',
                                 body: formData
                             }});
                             
                             if (response.ok) {{
-                                // Fetch follows redirects automatically. 
-                                // The response.url will be the final destination (result page).
                                 window.location.href = response.url;
                             }} else {{
                                 const text = await response.text();
@@ -632,7 +686,7 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                     
                     // Run on load to handle auto-selection
                     window.onload = function() {{
-                        updateLeftMiddleRight();
+                        updateSelection();
                         document.getElementById('imageSelectionForm').addEventListener('submit', submitStitching);
                     }};
                 </script>
@@ -647,7 +701,7 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                 <div class="container">
                     <div class="header">
                         <h1>Select Images</h1>
-                        <p>Choose 3 images with similar brightness for the best result.</p>
+                        <p>{"Select 3 or more images with similar brightness for superior stitching accuracy." if advanced_mode else "Choose 3 images with similar brightness for the best result."}</p>
                     </div>
                     
                     <form id="imageSelectionForm" method="post" action="/stitch/run">
@@ -656,23 +710,10 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                         </div>
                         
                         <div class="selection-panel">
-                            <div class="selection-grid">
-                                <div class="selection-slot" id="left_slot">
-                                    <div class="slot-label">Left Image</div>
-                                    <div class="slot-value" id="left_display">Select an image</div>
-                                    <input type="hidden" id="left_image" name="left_image">
-                                </div>
-                                <div class="selection-slot" id="middle_slot">
-                                    <div class="slot-label">Middle Image</div>
-                                    <div class="slot-value" id="middle_display">Select an image</div>
-                                    <input type="hidden" id="middle_image" name="middle_image">
-                                </div>
-                                <div class="selection-slot" id="right_slot">
-                                    <div class="slot-label">Right Image</div>
-                                    <div class="slot-value" id="right_display">Select an image</div>
-                                    <input type="hidden" id="right_image" name="right_image">
-                                </div>
-                            </div>
+                            {"<div class='mode-indicator'>✨ ADVANCED MODE: Multi-Image Enhanced Stitching</div>" if advanced_mode else ""}
+                            <div id="selection_grid" class="selection-grid {'' if advanced_mode else 'standard'}"></div>
+                            
+                            <input type="hidden" id="selected_images" name="selected_images" value="">
                             
                             <div class="options-grid">
                                 <div class="form-group">
@@ -690,10 +731,11 @@ async def select_images_form(input_folder: str = Form(...), auto_select: bool = 
                             </div>
                             
                             <input type="hidden" name="input_folder" value="{input_folder}">
+                            <input type="hidden" name="advanced_mode" value="{str(advanced_mode).lower()}">
                             
                             <div class="actions">
                                 <a href="/stitch" class="back-link">Cancel</a>
-                                <button type="submit" id="submit_btn" class="btn" disabled>Select 3 images</button>
+                                <button type="submit" id="submit_btn" class="btn" disabled>Select images</button>
                             </div>
                         </div>
                     </form>
@@ -778,6 +820,95 @@ def stitch_run(
         
     except Exception as e:
         tb = traceback.format_exc()
+        return HTMLResponse(f"<h1>Error</h1><pre>{tb}</pre>", status_code=500)
+
+
+@app.post("/stitch/run-advanced")
+def stitch_run_advanced(
+    input_folder: str = Form(...),
+    output_image: str = Form(...),
+    selected_images: str = Form(...),
+    max_dim: int = Form(8192),
+    max_stitch_dim: int = Form(10000),
+    upscale: float = Form(1.0),
+    upscale_method: str = Form("lanczos"),
+):
+    """Advanced stitching endpoint for 3+ images with enhanced algorithms."""
+    import traceback
+    import uuid
+    
+    try:
+        # Parse selected images (delimited by |||)
+        image_paths = [p.strip() for p in selected_images.split('|||') if p.strip()]
+        
+        if len(image_paths) < 3:
+            return HTMLResponse(
+                f"<h1>Error</h1><p>Advanced mode requires at least 3 images. You selected {len(image_paths)}.</p>",
+                status_code=400
+            )
+        
+        if len(image_paths) > 10:
+            return HTMLResponse(
+                f"<h1>Error</h1><p>Too many images selected ({len(image_paths)}). Maximum is 10.</p>",
+                status_code=400
+            )
+        
+        print(f"Advanced stitching: Processing {len(image_paths)} images")
+        
+        # Load selected images
+        images_to_stitch = []
+        for img_path in image_paths:
+            if os.path.exists(img_path):
+                img = cv2.imread(img_path)
+                if img is not None:
+                    images_to_stitch.append(img)
+                    print(f"  Loaded: {os.path.basename(img_path)} ({img.shape[1]}x{img.shape[0]})")
+                else:
+                    print(f"  Warning: Could not read {img_path}")
+            else:
+                print(f"  Warning: File not found {img_path}")
+        
+        if len(images_to_stitch) < 3:
+            return HTMLResponse(
+                f"<h1>Error</h1><p>Could not load enough images. Loaded {len(images_to_stitch)} out of {len(image_paths)}.</p>",
+                status_code=400
+            )
+        
+        # Create output directory if needed
+        os.makedirs(os.path.dirname(output_image) or ".", exist_ok=True)
+        
+        # Use advanced stitching algorithm
+        from ..macro_stitch_pipeline import stitch_images_advanced, prepare_for_yolo, upscale_image
+        
+        print("Starting advanced stitching algorithm...")
+        pano = stitch_images_advanced(images_to_stitch, max_stitch_dim=max_stitch_dim)
+        
+        # Upscale if requested
+        if upscale > 1.0:
+            print(f"Upscaling by {upscale}x...")
+            pano = upscale_image(pano, scale=upscale, method=upscale_method)
+        
+        # Save and prepare for YOLO
+        print("Saving output...")
+        meta = prepare_for_yolo(pano, output_image, max_dim=max_dim)
+        meta['num_images_stitched'] = len(images_to_stitch)
+        meta['mode'] = 'advanced'
+        
+        # Cache the result
+        session_id = str(uuid.uuid4())[:8]
+        abs_image_path = os.path.abspath(meta['image_path'])
+        _stitched_cache[session_id] = {
+            'image_path': abs_image_path,
+            'label_path': meta['label_path'],
+            'meta': meta
+        }
+        
+        print(f"Advanced stitching complete. Session: {session_id}")
+        return RedirectResponse(url=f"/stitch/result?session={session_id}", status_code=303)
+        
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"Error in advanced stitching: {tb}")
         return HTMLResponse(f"<h1>Error</h1><pre>{tb}</pre>", status_code=500)
 
 
@@ -901,10 +1032,14 @@ async def stitch_result(session: str = Query(...)):
                     <div class="card">
                         <div class="header">
                             <h1>✨ Stitching Complete!</h1>
-                            <p>Your mosaic has been successfully generated.</p>
+                            <p>Your mosaic has been successfully generated{' using advanced multi-image algorithms.' if meta.get('mode') == 'advanced' else '.'}</p>
                         </div>
                         
                         <div class="meta-grid">
+                            {f'''<div class="meta-item">
+                                <div class="meta-label">Mode</div>
+                                <div class="meta-value" style="font-size: 1.2rem;">🚀 Advanced ({meta.get('num_images_stitched', 'N/A')} images)</div>
+                            </div>''' if meta.get('mode') == 'advanced' else ''}
                             <div class="meta-item">
                                 <div class="meta-label">Original Size</div>
                                 <div class="meta-value">{meta['original_size'][0]} × {meta['original_size'][1]}</div>

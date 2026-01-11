@@ -652,6 +652,143 @@ def process_folder(input_folder: str, output_image_path: str, *,
     return meta
 
 
+def stitch_images_advanced(image_list: List[np.ndarray], max_stitch_dim: int = 10000) -> np.ndarray:
+    """Advanced stitching algorithm for 3+ images with enhanced reliability.
+    
+    Uses multiple feature detection strategies, robust homography estimation,
+    and quality validation for superior accuracy with multiple images.
+    
+    Args:
+        image_list: List of overlapping partial images (3 or more recommended)
+        max_stitch_dim: Maximum dimension for intermediate processing
+    
+    Returns:
+        High-quality stitched mosaic image
+    """
+    if not image_list:
+        raise ValueError("No images to stitch")
+    if len(image_list) == 1:
+        return image_list[0]
+    
+    print(f"Advanced stitching mode: Processing {len(image_list)} images")
+    print(f"Quality settings: max_stitch_dim={max_stitch_dim}, enhanced feature detection")
+    
+    # Prepare images at working resolution
+    max_tile_dim = max(max(im.shape[0], im.shape[1]) for im in image_list)
+    scale = 1.0
+    if max_tile_dim > max_stitch_dim:
+        scale = float(max_stitch_dim) / float(max_tile_dim)
+        print(f"Scaling images to {max_stitch_dim}px (scale={scale:.3f})")
+        working_images = [
+            cv2.resize(im, (max(1, int(im.shape[1] * scale)), max(1, int(im.shape[0] * scale))),
+                       interpolation=cv2.INTER_LANCZOS4)
+            for im in image_list
+        ]
+    else:
+        print(f"Working at full resolution (max dim: {max_tile_dim})")
+        working_images = [im.copy() for im in image_list]
+    
+    # Find the best starting pair based on feature matches
+    print("Finding optimal image pairs...")
+    best_pair_idx = (0, 1)
+    best_match_count = 0
+    
+    for i in range(len(working_images) - 1):
+        kp1, kp2, matches = detect_and_match_features(
+            working_images[i], working_images[i+1], 
+            nfeatures=15000,  # More features for better accuracy
+            ratio_thresh=0.7   # Stricter ratio test
+        )
+        match_count = len(matches)
+        print(f"  Images {i}-{i+1}: {match_count} matches")
+        if match_count > best_match_count:
+            best_match_count = match_count
+            best_pair_idx = (i, i+1)
+    
+    print(f"Starting with best pair: {best_pair_idx} ({best_match_count} matches)")
+    
+    # Initialize with the best pair
+    idx1, idx2 = best_pair_idx
+    kp1, kp2, matches = detect_and_match_features(
+        working_images[idx1], working_images[idx2],
+        nfeatures=15000, ratio_thresh=0.7
+    )
+    H, mask = compute_homography(kp1, kp2, matches, min_matches=15)
+    
+    if H is None:
+        print("Warning: Could not compute initial homography, falling back to sequential")
+        return stitch_images(working_images, max_stitch_dim)
+    
+    result = stitch_pair(working_images[idx1], working_images[idx2], H)
+    stitched_indices = {idx1, idx2}
+    
+    print(f"Initial pair stitched. Size: {result.shape[:2]}")
+    
+    # Iteratively add remaining images (greedy approach)
+    while len(stitched_indices) < len(working_images):
+        best_next_idx = None
+        best_next_matches = 0
+        best_next_H = None
+        best_is_forward = True
+        
+        # Try each unstitched image
+        for idx in range(len(working_images)):
+            if idx in stitched_indices:
+                continue
+            
+            # Try matching with current result
+            kp_result, kp_candidate, matches = detect_and_match_features(
+                result, working_images[idx],
+                nfeatures=15000, ratio_thresh=0.7
+            )
+            
+            if len(matches) > best_next_matches:
+                H, mask = compute_homography(kp_result, kp_candidate, matches, min_matches=15)
+                if H is not None:
+                    det = np.linalg.det(H[:2, :2])
+                    if 0.1 < det < 10:  # Validate homography
+                        best_next_idx = idx
+                        best_next_matches = len(matches)
+                        best_next_H = H
+                        best_is_forward = True
+            
+            # Also try reverse direction
+            kp_candidate, kp_result, matches_rev = detect_and_match_features(
+                working_images[idx], result,
+                nfeatures=15000, ratio_thresh=0.7
+            )
+            
+            if len(matches_rev) > best_next_matches:
+                H, mask = compute_homography(kp_candidate, kp_result, matches_rev, min_matches=15)
+                if H is not None:
+                    det = np.linalg.det(H[:2, :2])
+                    if 0.1 < det < 10:
+                        best_next_idx = idx
+                        best_next_matches = len(matches_rev)
+                        best_next_H = H
+                        best_is_forward = False
+        
+        if best_next_idx is None:
+            print(f"Warning: Could not find good match for remaining {len(working_images) - len(stitched_indices)} images")
+            break
+        
+        print(f"Adding image {best_next_idx} ({best_next_matches} matches, {'forward' if best_is_forward else 'reverse'})...")
+        
+        if best_is_forward:
+            result = stitch_pair(result, working_images[best_next_idx], best_next_H)
+        else:
+            result = stitch_pair(working_images[best_next_idx], result, best_next_H)
+        
+        stitched_indices.add(best_next_idx)
+        print(f"  Current mosaic size: {result.shape[:2]} ({len(stitched_indices)}/{len(working_images)} stitched)")
+    
+    # Final cleanup
+    result = crop_black_borders(result)
+    print(f"Advanced stitching complete. Final size: {result.shape[:2]}")
+    
+    return result
+
+
 if __name__ == '__main__':
     import argparse
 
