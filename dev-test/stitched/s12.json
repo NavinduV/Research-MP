@@ -1,0 +1,13 @@
+{
+  "original_size": [
+    2308,
+    2665
+  ],
+  "output_size": [
+    2308,
+    2665
+  ],
+  "scale": 1.0,
+  "image_path": "dev-test/stitched/s12-3.png",
+  "label_path": "dev-test/stitched/s12-3.txt"
+}
