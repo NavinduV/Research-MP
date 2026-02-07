@@ -9,3 +9,68 @@ uvicorn src.app.main:app --reload --host 127.0.0.1 --port 8000
 
 Run label sudio:
 label-studio
+
+test the pipeline:
+python src/test_pipeline.py --image dev-test/stitched/s7.png --model all
+
+train yolo:
+# Train with nano model (fastest, good for testing)
+>> python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 300 --model-size l --batch 
+4 --imgsz 1280
+
+python src/train_yolo.py --mode train --data data/yolo_augmented/dataset.yaml --epochs 200 --model-size m --batch 8
+
+Running yolo for real test after trained:
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo/weights/best.pt --image "dev-test/stitched/s7.png"
+
+================================================================================
+MASK R-CNN TRAINING (Instance Segmentation)
+================================================================================
+
+# Train Mask R-CNN (uses pseudo-masks from bounding boxes since polygon annotations are not available)
+python src/train_maskrcnn.py --mode train --annotations data/annotations/annotations.json --image-dir data/annotations/images --epochs 50 --batch 8 --img-size 1280
+
+# Resume training from checkpoint
+python src/train_maskrcnn.py --mode train --annotations data/annotations/annotations.json --image-dir data/annotations/images --epochs 100 --resume experiments/maskrcnn_latest.pth
+
+# Run inference on an image
+python src/train_maskrcnn.py --mode predict --model experiments/maskrcnn_best.pth --image "dev-test/stitched/s7.png" --conf 0.5
+
+# NOTE: For best segmentation accuracy, re-annotate images in Label Studio using 
+# Polygon or Brush tools instead of bounding boxes, then export in COCO format.
+
+================================================================================
+YOLO + MASK R-CNN PIPELINE (Recommended for Better Accuracy)
+================================================================================
+
+# Step 1: Prepare training crops from YOLO detections
+python src/train_maskrcnn_crops.py --mode prepare --images "dev-test/stitched" --yolo experiments/microplastic_yolo/weights/best.pt --yolo-conf 0.1
+
+# Step 2: Train Mask R-CNN on cropped detections
+python src/train_maskrcnn_crops.py --mode train --epochs 50 --batch 8
+
+# Step 3: Run the complete pipeline on an image
+python src/pipeline_inference.py --image "dev-test/stitched/s7.png"
+
+# Run pipeline with custom models
+python src/pipeline_inference.py --image "dev-test/stitched/s7.png" --yolo experiments/microplastic_yolo/weights/best.pt --maskrcnn experiments/maskrcnn_crops_best.pth
+
+# Run pipeline with ellipse masks only (skip Mask R-CNN, faster)
+python src/pipeline_inference.py --image "dev-test/stitched/s7.png" --no-maskrcnn
+
+
+
+
+
+
+
+
+
+#*Worked Commands*
+
+#Train yolo
+python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 
+50 --model-size l --batch 8 --imgsz 1280
+
+#check Yolo
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo/weights/best.pt --image "dev-test\stitched\s2.png" --conf 0.01

@@ -1,0 +1,447 @@
+# Microplastic Detection Pipeline: Complete Training Guide for Research Paper
+
+## Overview
+
+This document provides a **complete step-by-step guide** for training and testing the YOLO → Mask R-CNN → EfficientNet pipeline for microplastic detection in macro images of filter papers. This is designed to be used as reference material for your research paper.
+
+---
+
+## The Three-Model Pipeline Explained
+
+```mermaid
+flowchart LR
+    subgraph Input
+        A[Macro Image of Filter Paper]
+    end
+    
+    subgraph Stage1["Stage 1: YOLO"]
+        B[Fast Object Detection]
+        B1["Output: Bounding Boxes + Confidence"]
+    end
+    
+    subgraph Stage2["Stage 2: Mask R-CNN"]
+        C[Instance Segmentation]
+        C1["Output: Pixel-level Masks"]
+    end
+    
+    subgraph Stage3["Stage 3: EfficientNet"]
+        D[Classification]
+        D1["Output: Fiber/Film/Fragment Labels"]
+    end
+    
+    subgraph Output
+        E[Microplastic Statistics Report]
+    end
+    
+    A --> B --> B1 --> C --> C1 --> D --> D1 --> E
+```
+
+---
+
+## Model Explanations for Research Paper
+
+### 1. YOLO (You Only Look Once) - Object Detection
+
+| Aspect | Description |
+|--------|-------------|
+| **Purpose** | Fast detection of microplastics - finds WHERE they are in the image |
+| **Architecture** | Single-stage convolutional neural network that predicts bounding boxes and class probabilities in one forward pass |
+| **Output** | Bounding boxes (x, y, width, height) + class labels + confidence scores |
+| **Why YOLO?** | Real-time speed (45+ FPS), good for initial screening of large filter images |
+| **Version Used** | YOLOv8 (Ultralytics) - latest with improved accuracy and ease of use |
+
+**How YOLO Works (for paper):**
+1. Divides image into grid cells
+2. Each cell predicts bounding boxes and class probabilities
+3. Non-max suppression removes overlapping detections
+4. Single forward pass = very fast inference
+
+### 2. Mask R-CNN - Instance Segmentation
+
+| Aspect | Description |
+|--------|-------------|
+| **Purpose** | Precise boundary delineation - finds EXACT SHAPE of each microplastic |
+| **Architecture** | Two-stage detector with Region Proposal Network (RPN) + mask prediction branch |
+| **Output** | Pixel-level binary masks for each detected instance |
+| **Why Mask R-CNN?** | Gold standard for instance segmentation, provides accurate area measurements |
+| **Backbone** | ResNet-50 with Feature Pyramid Network (FPN) |
+
+**How Mask R-CNN Works (for paper):**
+1. RPN proposes regions likely to contain objects
+2. ROI Align extracts features for each proposal
+3. Parallel heads predict class, box refinement, and binary mask
+4. Enables precise size/area measurements of each microplastic
+
+### 3. EfficientNet - Classification
+
+| Aspect | Description |
+|--------|-------------|
+| **Purpose** | Classify each detected microplastic into Fiber/Film/Fragment |
+| **Architecture** | Compound-scaled CNN with efficient mobile inverted bottleneck convolutions |
+| **Output** | Class probabilities for 3 microplastic types |
+| **Why EfficientNet?** | State-of-the-art accuracy with fewer parameters, efficient for small patches |
+| **Version Used** | EfficientNet-B0 (smallest, sufficient for 3-class problem) |
+
+**How EfficientNet Works (for paper):**
+1. Takes cropped image patches from detections
+2. Extracts hierarchical features through scaled layers
+3. Global average pooling + fully connected layer for classification
+4. Softmax outputs probabilities for each class
+
+---
+
+## Data Flow in Your Research
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SAMPLE COLLECTION & IMAGING                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Filter Paper + Microplastics                                               │
+│           │                                                                  │
+│           ├──────────────────────┬──────────────────────────┐               │
+│           │                      │                          │               │
+│           ▼                      ▼                          ▼               │
+│    ┌────────────┐         ┌────────────┐            ┌─────────────┐        │
+│    │ Microscope │         │ Mobile Macro│            │Raw Images   │        │
+│    │ (Micro)    │         │ Lens (Macro)│            │             │        │
+│    └─────┬──────┘         └──────┬─────┘            └──────┬──────┘        │
+│          │                       │                         │               │
+│          │                       │                         │               │
+│          ▼                       ▼                         ▼               │
+│    ┌────────────┐         ┌─────────────────┐       ┌─────────────┐        │
+│    │ Micro Images│         │ Image Stitching │       │ Stitched    │        │
+│    │ (Validation)│         │ Pipeline        │       │ Macro Images│        │
+│    └────────────┘         └─────────────────┘       └──────┬──────┘        │
+│                                                            │               │
+│                                                            ▼               │
+│                                                     ┌─────────────┐        │
+│                                                     │ Label Studio│        │
+│                                                     │ (Annotation)│        │
+│                                                     └──────┬──────┘        │
+│                                                            │               │
+│                                                            ▼               │
+│                                                     ┌─────────────┐        │
+│                                                     │ Export JSON │        │
+│                                                     └─────────────┘        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Pre-requisites Check
+
+### Verify Environment
+```powershell
+# Activate virtual environment
+cd D:\Research_Dev\mp-detect
+.\venv\Scripts\activate
+
+# Check CUDA availability (GPU acceleration)
+python -c "import torch; print(f'CUDA Available: {torch.cuda.is_available()}')"
+
+# Verify packages
+python -c "from ultralytics import YOLO; print('YOLO OK')"
+python -c "from torchvision.models.detection import maskrcnn_resnet50_fpn; print('Mask R-CNN OK')"
+python -c "import timm; print('EfficientNet (timm) OK')"
+```
+
+---
+
+## Step-by-Step Training Workflow
+
+### PHASE 1: Labeling Your Data in Label Studio
+
+#### Step 1.1: Start Label Studio
+```powershell
+.\venv\Scripts\activate
+label-studio
+```
+Open http://localhost:8080 in browser
+
+#### Step 1.2: Create Project
+1. Click **"Create Project"**
+2. Name: `Microplastic Detection`
+3. Go to **"Labeling Setup"** → Select **"Object Detection with Bounding Boxes"**
+4. Replace config with:
+
+```xml
+<View>
+  <Image name="image" value="$image"/>
+  <RectangleLabels name="label" toName="image">
+    <Label value="Fiber" background="red"/>
+    <Label value="Film" background="green"/>
+    <Label value="Fragment" background="blue"/>
+  </RectangleLabels>
+</View>
+```
+
+#### Step 1.3: Import Your Stitched Images
+1. Go to project → **"Data Import"**
+2. Upload your stitched macro images from `data/stitched/` or `dev-test/stitched/`
+
+#### Step 1.4: Label Microplastics
+For each image:
+1. Draw bounding boxes around each microplastic
+2. Select class: **Fiber**, **Film**, or **Fragment**
+3. Click **Submit**
+
+> [!TIP]
+> **Identification Guide:**
+> - **Fibers**: Long, thin, thread-like (aspect ratio > 3:1)
+> - **Films**: Flat, sheet-like, often transparent
+> - **Fragments**: Irregular chunks, broken pieces (aspect ratio ~ 1:1)
+
+#### Step 1.5: Export Annotations
+1. Go to project → **"Export"**
+2. Choose **JSON** format
+3. Save as `data/labelstudio_export.json`
+
+---
+
+### PHASE 2: Convert Labels to Training Formats
+
+#### Step 2.1: Setup YOLO Directory Structure
+```powershell
+python src/train_yolo.py --mode setup
+```
+
+This creates:
+```
+data/yolo/
+├── images/
+│   ├── train/
+│   ├── val/
+│   └── test/
+├── labels/
+│   ├── train/
+│   ├── val/
+│   └── test/
+└── dataset.yaml
+```
+
+#### Step 2.2: Convert to YOLO Format
+```powershell
+python src/convert_labels.py `
+    --input data/labelstudio_export.json `
+    --output data/yolo `
+    --format yolo `
+    --images data/stitched
+```
+
+**YOLO label format (one .txt per image):**
+```
+# class_id center_x center_y width height (all normalized 0-1)
+0 0.512 0.345 0.023 0.089  # fiber
+1 0.234 0.567 0.045 0.034  # film
+2 0.789 0.123 0.031 0.028  # fragment
+```
+
+#### Step 2.3: Convert to COCO Format (for Mask R-CNN)
+```powershell
+python src/convert_labels.py `
+    --input data/labelstudio_export.json `
+    --output data/annotations `
+    --format coco `
+    --images data/stitched
+```
+
+#### Step 2.4: Extract Patches (for EfficientNet)
+```powershell
+python src/convert_labels.py `
+    --input data/labelstudio_export.json `
+    --output data/patches `
+    --format patches `
+    --images data/stitched
+```
+
+This creates:
+```
+data/patches/
+├── 0/  # fiber patches
+├── 1/  # film patches
+└── 2/  # fragment patches
+```
+
+---
+
+### PHASE 3: Train YOLO (Object Detection)
+
+#### Step 3.1: Start YOLO Training
+```powershell
+# Basic training (fast, for testing)
+python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 50 --model-size n
+
+# Better accuracy (longer training)
+python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 100 --model-size s
+```
+
+**Model sizes:**
+| Size | Use Case | Training Time |
+|------|----------|---------------|
+| `n` (nano) | Quick testing | ~30 min |
+| `s` (small) | Recommended | ~1-2 hours |
+| `m` (medium) | Better accuracy | ~3-4 hours |
+| `l` (large) | Best accuracy | ~6+ hours |
+
+#### Step 3.2: Monitor Training
+Training creates results in `experiments/microplastic_yolo/`:
+- `results.csv` - metrics per epoch
+- `weights/best.pt` - best model checkpoint
+- `confusion_matrix.png` - class-wise accuracy
+
+#### Step 3.3: Validate YOLO
+```powershell
+python src/train_yolo.py --mode val --data data/yolo/dataset.yaml
+```
+
+#### Step 3.4: Test YOLO Predictions
+```powershell
+python src/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
+```
+
+---
+
+### PHASE 4: Train Mask R-CNN (Segmentation)
+
+> [!IMPORTANT]
+> Mask R-CNN requires COCO format annotations. Run Step 2.3 first.
+
+#### Step 4.1: Train Mask R-CNN
+```powershell
+python src/train_maskrcnn.py
+```
+
+Training saves model to `experiments/maskrcnn.pth`
+
+#### Step 4.2: Training Parameters
+Edit `src/train_maskrcnn.py` for:
+- `epochs` (default: 10)
+- `batch_size` (default: 2, reduce if memory errors)
+- `learning_rate` (default: 1e-4)
+
+---
+
+### PHASE 5: Train EfficientNet (Classification)
+
+> [!IMPORTANT]
+> EfficientNet requires extracted patches. Run Step 2.4 first.
+
+#### Step 5.1: Train EfficientNet
+```powershell
+python src/train_effnet.py
+```
+
+Training saves model to `experiments/efficientnet.pth`
+
+---
+
+### PHASE 6: Test Complete Pipeline
+
+#### Step 6.1: Test with Pretrained Models (Before Training)
+```powershell
+# Test entire pipeline
+python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
+
+# Test individual models
+python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model yolo
+python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model maskrcnn
+python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model effnet
+```
+
+#### Step 6.2: Test with Trained Models
+After training, you can run inference:
+```powershell
+# YOLO prediction
+python src/train_yolo.py --mode predict --image "your_test_image.png"
+```
+
+Results saved to `experiments/predictions/`
+
+---
+
+## Recommended Dataset Split (10 Samples)
+
+| Set | Samples | Purpose |
+|-----|---------|---------|
+| Training | 5-6 | Train all models |
+| Validation | 2 | Tune hyperparameters |
+| Test | 2-3 | Final evaluation (hold out) |
+
+> [!CAUTION]
+> **Minimum requirements:**
+> - YOLO: ~50 total labeled objects across all images
+> - EfficientNet: 30+ patches per class
+> - Mask R-CNN: 10+ images with annotations
+
+---
+
+## Micro Images - Usage Decision
+
+Based on your research design:
+
+| Question | Answer |
+|----------|--------|
+| Should I label micro images? | **No** - only use for validation |
+| Should I stitch micro images? | **No** - too many images needed |
+| What to use micro images for? | Visual validation that macro detections are correct |
+| Should I detect in micro images? | **Optional** - adds complexity without benefit |
+
+**Recommendation:** Use micro images only to manually verify that your model's macro image detections correspond to real microplastics visible in high-resolution micro images.
+
+---
+
+## Expected Outputs for Research Paper
+
+After training, you can generate:
+
+1. **Detection Statistics:**
+   - Total microplastic count
+   - Count by type (fiber, film, fragment)
+   - Size distribution
+   
+2. **Visualizations:**
+   - Annotated images with bounding boxes
+   - Segmentation masks
+   - Class distribution charts
+
+3. **Metrics for Paper:**
+   - Precision, Recall, F1-score
+   - mAP@50, mAP@50-95
+   - Confusion matrix
+
+---
+
+## Verification Plan
+
+### Automated Test
+```powershell
+# Run pipeline test (validates all models load and run)
+python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
+```
+
+**Expected:** Models load successfully, creates output images in `experiments/pipeline_test/`
+
+### Post-Training Validation
+```powershell
+# Validate YOLO model
+python src/train_yolo.py --mode val --data data/yolo/dataset.yaml
+
+# Predict on test image
+python src/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
+```
+
+---
+
+## Questions for You
+
+Before proceeding, please confirm:
+
+1. **Have you already exported labeled data from Label Studio?** If yes, where is the JSON file?
+
+2. **How many images have you labeled so far?** (You mentioned 10 samples)
+
+3. **Approximately how many microplastics are labeled per image?**
+
+4. **Do you want me to run the test pipeline now** to validate the environment works?

@@ -1,0 +1,13 @@
+{
+  "original_size": [
+    2640,
+    2763
+  ],
+  "output_size": [
+    2640,
+    2763
+  ],
+  "scale": 1.0,
+  "image_path": "dev-test\\stitched-validation\\vs5.png",
+  "label_path": "dev-test\\stitched-validation\\vs5.txt"
+}

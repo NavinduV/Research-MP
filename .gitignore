@@ -23,6 +23,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+venv.rar
 
 # IDEs and editors
 .vscode/
@@ -59,8 +60,10 @@ logs/
 
 # Project data / outputs (adjust if any of these should be tracked)
 /data/raw/
+/data/stitched/
 /data/patches/
 /dev-test/raw/
+/dev-test/validation/
 /experiments/
 /notebooks/.ipynb_checkpoints/
 
@@ -72,3 +75,12 @@ logs/
 *.pyc
 *.pyo
 *.pyd
+
+#ML Models
+yolov8l.pt
+yolov8m.pt
+yolov8s.pt
+yolov8n.pt
+yolov8x.pt
+
+data/
