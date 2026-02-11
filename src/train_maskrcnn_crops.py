@@ -56,7 +56,17 @@ PADDING = 30     # Padding around detection for cropping
 # ============================================================================
 
 class CropDataset(Dataset):
-    """Dataset of cropped detections for Mask R-CNN training."""
+    """Dataset of cropped detections for Mask R-CNN training.
+    
+    Supports two directory layouts:
+      1. Flat: crops_dir/images/*.png + crops_dir/annotations.json
+      2. Class-organized: crops_dir/{fiber,film,fragment}/*.png + crops_dir/annotations.json
+    
+    If annotations.json is missing but class subdirs exist, annotations are
+    auto-generated from the directory structure (class inferred from subdir name).
+    """
+    
+    CLASS_NAME_TO_YOLO_ID = {'fiber': 0, 'film': 1, 'fragment': 2}
     
     def __init__(self, crops_dir: str, transforms=None):
         """
@@ -67,10 +77,49 @@ class CropDataset(Dataset):
         self.crops_dir = Path(crops_dir)
         self.transforms = transforms
         
-        # Load annotations
+        # Determine layout and load / build annotations
         ann_file = self.crops_dir / 'annotations.json'
-        with open(ann_file) as f:
-            self.annotations = json.load(f)
+        has_flat_images = (self.crops_dir / 'images').is_dir()
+        has_class_dirs = any((self.crops_dir / c).is_dir() for c in self.CLASS_NAME_TO_YOLO_ID)
+        
+        if ann_file.exists():
+            # Preferred: use existing annotations.json
+            with open(ann_file) as f:
+                self.annotations = json.load(f)
+            # Determine where images live
+            if has_flat_images:
+                self.images_dir = self.crops_dir / 'images'
+            elif has_class_dirs:
+                self.images_dir = None  # resolved per-sample from class_name
+            else:
+                self.images_dir = self.crops_dir / 'images'
+        elif has_class_dirs:
+            # Auto-generate annotations from class-organized subdirectories
+            self.annotations = {}
+            self.images_dir = None  # resolved per-sample
+            for cls_name, cls_id in self.CLASS_NAME_TO_YOLO_ID.items():
+                cls_dir = self.crops_dir / cls_name
+                if not cls_dir.is_dir():
+                    continue
+                for img_file in sorted(cls_dir.glob('*.png')):
+                    crop = cv2.imread(str(img_file))
+                    if crop is None:
+                        continue
+                    h, w = crop.shape[:2]
+                    self.annotations[img_file.name] = {
+                        'source_image': '',
+                        'class_id': cls_id,
+                        'class_name': cls_name,
+                        'yolo_confidence': 1.0,
+                        'rel_box': [0, 0, w, h],
+                        'crop_size': [w, h]
+                    }
+            print(f"Auto-generated annotations for {len(self.annotations)} crops from class subdirs")
+        else:
+            raise FileNotFoundError(
+                f"No annotations.json or class subdirs found in {crops_dir}. "
+                "Run predict with the YOLO model first to generate crops."
+            )
         
         self.samples = list(self.annotations.keys())
         print(f"Loaded {len(self.samples)} crop samples from {crops_dir}")
@@ -82,8 +131,14 @@ class CropDataset(Dataset):
         sample_name = self.samples[idx]
         ann = self.annotations[sample_name]
         
-        # Load crop image
-        img_path = self.crops_dir / 'images' / sample_name
+        # Load crop image - supports flat images/ dir or class subdirs
+        if self.images_dir is not None:
+            img_path = self.images_dir / sample_name
+        else:
+            # Resolve from class subdirectory
+            cls_name = ann.get('class_name', '')
+            img_path = self.crops_dir / cls_name / sample_name
+        
         image = cv2.imread(str(img_path))
         if image is None:
             raise FileNotFoundError(f"Could not load: {img_path}")
@@ -91,24 +146,41 @@ class CropDataset(Dataset):
         
         h, w = image.shape[:2]
         
-        # Try to load SAM-generated mask if available
-        mask_file = ann.get('mask_file')
+        # Load mask — prefer SAM mask, fall back to ellipse
         mask = None
+        mask_file = ann.get('mask_file')
+        masks_dir = self.crops_dir / 'masks'
         
-        if mask_file:
-            mask_path = self.crops_dir / 'masks' / mask_file
-            if mask_path.exists():
-                mask_img = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-                if mask_img is not None:
-                    mask = (mask_img > 127).astype(np.uint8)
+        if mask_file and (masks_dir / mask_file).exists():
+            # SAM mask from annotations (mask_file key)
+            raw = cv2.imread(str(masks_dir / mask_file), cv2.IMREAD_GRAYSCALE)
+            if raw is not None:
+                mask = (raw > 127).astype(np.uint8)
         
-        # Fallback to ellipse pseudo-mask if SAM mask not available
         if mask is None:
+            # Try default naming convention: <stem>_mask.png
+            default_mask = masks_dir / sample_name.replace('.png', '_mask.png')
+            if default_mask.exists():
+                raw = cv2.imread(str(default_mask), cv2.IMREAD_GRAYSCALE)
+                if raw is not None:
+                    mask = (raw > 127).astype(np.uint8)
+        
+        if mask is None:
+            # Fallback: ellipse from rel_box
             mask = self._create_ellipse_mask(h, w, ann.get('rel_box'))
         
-        # Bounding box for the object (covers most of crop since it's centered)
-        margin = min(h, w) // 10
-        box = [margin, margin, w - margin, h - margin]
+        # Resize mask to match image if needed
+        if mask.shape[:2] != (h, w):
+            mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+        
+        # Derive tight bounding box from mask
+        ys, xs = np.where(mask > 0)
+        if len(xs) > 0 and len(ys) > 0:
+            box = [xs.min(), ys.min(), xs.max(), ys.max()]
+        else:
+            # Mask is empty — fall back to padded crop bounds
+            margin = min(h, w) // 10
+            box = [margin, margin, w - margin, h - margin]
         
         # Class label
         class_id = YOLO_TO_MASKRCNN[ann['class_id']]
@@ -312,6 +384,141 @@ def prepare_crops(images_dir: str, yolo_model_path: str, output_dir: str = 'data
 
 
 # ============================================================================
+# Prepare Crops from Original YOLO Labels (Ground Truth)
+# ============================================================================
+
+def prepare_from_yolo_labels(yolo_dir: str = 'data/yolo', output_dir: str = 'data/crops_gt',
+                              padding: int = 20, splits=('train', 'val')):
+    """
+    Generate Mask R-CNN training crops directly from YOLO ground-truth labels.
+    
+    This uses the ORIGINAL human-annotated bounding boxes, not YOLO predictions,
+    so the crops are guaranteed to be correct — no prediction errors propagate.
+    
+    YOLO label format per line:  class_id  cx  cy  w  h   (all normalised 0-1)
+    
+    Args:
+        yolo_dir:   Root of the YOLO dataset (contains images/ and labels/ with train/val splits)
+        output_dir: Where to save crops, images/, annotations.json and class subdirs
+        padding:    Pixels of context around each bbox
+        splits:     Which splits to process
+    """
+    yolo_path = Path(yolo_dir)
+    out_path = Path(output_dir)
+    (out_path / 'images').mkdir(parents=True, exist_ok=True)
+    for cls_name in CLASS_NAMES[1:]:   # fiber, film, fragment
+        (out_path / cls_name).mkdir(parents=True, exist_ok=True)
+
+    print(f"\n{'='*60}")
+    print("PREPARING MASK R-CNN CROPS FROM YOLO GROUND-TRUTH LABELS")
+    print(f"{'='*60}")
+    print(f"YOLO directory : {yolo_dir}")
+    print(f"Output directory: {output_dir}")
+    print(f"Padding        : {padding}px")
+    print(f"Splits         : {splits}")
+    print(f"{'='*60}\n")
+
+    annotations = {}
+    crop_count = 0
+    class_counts = {0: 0, 1: 0, 2: 0}
+
+    for split in splits:
+        img_dir = yolo_path / 'images' / split
+        lbl_dir = yolo_path / 'labels' / split
+
+        if not img_dir.exists():
+            print(f"Skipping split '{split}' — {img_dir} not found")
+            continue
+
+        image_files = sorted(list(img_dir.glob('*.png')) + list(img_dir.glob('*.jpg')))
+        print(f"\n[{split}] Found {len(image_files)} images")
+
+        for img_path in tqdm(image_files, desc=f"Processing {split}"):
+            image = cv2.imread(str(img_path))
+            if image is None:
+                print(f"  Warning: could not read {img_path}")
+                continue
+
+            h, w = image.shape[:2]
+
+            # Corresponding label file
+            lbl_path = lbl_dir / (img_path.stem + '.txt')
+            if not lbl_path.exists():
+                continue
+
+            with open(lbl_path) as f:
+                lines = [l.strip() for l in f if l.strip()]
+
+            for line in lines:
+                parts = line.split()
+                if len(parts) < 5:
+                    continue
+
+                cls_id = int(parts[0])
+                cx_n, cy_n, bw_n, bh_n = map(float, parts[1:5])
+
+                # Convert normalised → pixel coords
+                cx = cx_n * w
+                cy = cy_n * h
+                bw = bw_n * w
+                bh = bh_n * h
+                det_x1 = int(cx - bw / 2)
+                det_y1 = int(cy - bh / 2)
+                det_x2 = int(cx + bw / 2)
+                det_y2 = int(cy + bh / 2)
+
+                # Crop with padding, clipped to image bounds
+                x1 = max(0, det_x1 - padding)
+                y1 = max(0, det_y1 - padding)
+                x2 = min(w, det_x2 + padding)
+                y2 = min(h, det_y2 + padding)
+
+                crop_img = image[y1:y2, x1:x2]
+                if crop_img.size == 0 or crop_img.shape[0] < 10 or crop_img.shape[1] < 10:
+                    continue
+
+                cls_name = CLASS_NAMES[YOLO_TO_MASKRCNN[cls_id]]  # e.g. 'fiber'
+                crop_filename = f"{img_path.stem}_gt{crop_count:04d}_{cls_name}.png"
+
+                # Save in flat images/ and class subdirectory
+                cv2.imwrite(str(out_path / 'images' / crop_filename), crop_img)
+                cv2.imwrite(str(out_path / cls_name / crop_filename), crop_img)
+
+                # Relative box within the crop
+                rel_x1 = det_x1 - x1
+                rel_y1 = det_y1 - y1
+                rel_x2 = det_x2 - x1
+                rel_y2 = det_y2 - y1
+
+                annotations[crop_filename] = {
+                    'source_image': img_path.name,
+                    'split': split,
+                    'class_id': cls_id,
+                    'class_name': cls_name,
+                    'yolo_confidence': 1.0,   # ground-truth → perfect confidence
+                    'rel_box': [rel_x1, rel_y1, rel_x2, rel_y2],
+                    'crop_size': [crop_img.shape[1], crop_img.shape[0]]
+                }
+
+                class_counts[cls_id] += 1
+                crop_count += 1
+
+    # Save annotations
+    with open(out_path / 'annotations.json', 'w') as f:
+        json.dump(annotations, f, indent=2)
+
+    print(f"\n{'='*60}")
+    print("CROP PREPARATION COMPLETE (from YOLO ground-truth)")
+    print(f"{'='*60}")
+    print(f"Total crops: {crop_count}")
+    print(f"  Fiber    : {class_counts[0]}")
+    print(f"  Film     : {class_counts[1]}")
+    print(f"  Fragment : {class_counts[2]}")
+    print(f"Saved to   : {out_path}")
+    print(f"{'='*60}\n")
+
+
+# ============================================================================
 # Training
 # ============================================================================
 
@@ -421,14 +628,18 @@ def train(crops_dir: str = 'data/crops', epochs: int = 50, batch_size: int = 8,
 
 def main():
     parser = argparse.ArgumentParser(description='Train Mask R-CNN on YOLO crops')
-    parser.add_argument('--mode', type=str, choices=['prepare', 'train'], required=True,
-                        help='Mode: prepare (generate crops) or train')
+    parser.add_argument('--mode', type=str, choices=['prepare', 'prepare-gt', 'train'], required=True,
+                        help='Mode: prepare (crops from YOLO model), prepare-gt (crops from YOLO labels), or train')
     parser.add_argument('--images', type=str, default='data/stitched',
                         help='Image directory for crop preparation')
     parser.add_argument('--yolo', type=str, default='experiments/microplastic_yolo/weights/best.pt',
                         help='YOLO model for detection')
+    parser.add_argument('--yolo-dir', type=str, default='data/yolo',
+                        help='YOLO dataset directory (for prepare-gt mode)')
     parser.add_argument('--crops-dir', type=str, default='data/crops',
                         help='Directory for crop data')
+    parser.add_argument('--padding', type=int, default=20,
+                        help='Padding around bbox when cropping (pixels)')
     parser.add_argument('--epochs', type=int, default=50, help='Training epochs')
     parser.add_argument('--batch', type=int, default=8, help='Batch size')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
@@ -445,6 +656,13 @@ def main():
             yolo_conf=args.yolo_conf
         )
     
+    elif args.mode == 'prepare-gt':
+        prepare_from_yolo_labels(
+            yolo_dir=args.yolo_dir,
+            output_dir=args.crops_dir,
+            padding=args.padding,
+        )
+    
     elif args.mode == 'train':
         train(
             crops_dir=args.crops_dir,
@@ -457,3 +675,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

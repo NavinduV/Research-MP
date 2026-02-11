@@ -60,6 +60,23 @@ python src/pipeline_inference.py --image "dev-test/stitched/s7.png" --no-maskrcn
 
 
 
+#To train yolo crops for Mask R CNN with SAM Model
+python src/sam_auto_annotate.py --mode annotate --crops-dir data/crops --sam-model vit_h --sam-checkpoint sam_vit_h_4b8939.pth
+
+
+# View random samples
+python src/sam_auto_annotate.py --mode visualize --crops-dir data/crops_sam --num-samples 20
+
+
+# Save visualizations to folder
+python src/sam_auto_annotate.py --mode visualize --crops-dir data/crops_sam --save-vis data/mask_previews
+
+
+# Use the new SAM-annotated crops for training
+python src/train_maskrcnn_crops.py --mode train --crops-dir data/crops_sam --epochs 50
+
+
+
 
 
 
@@ -74,3 +91,82 @@ python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs
 
 #check Yolo
 python src/train_yolo.py --mode predict --model experiments/microplastic_yolo/weights/best.pt --image "dev-test\stitched\s2.png" --conf 0.01
+
+
+
+
+# Full image with all detections + EfficientNet refinement
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth --no-filter
+
+# Filtered to circular region only (default)
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth
+
+
+#Make groundtruth crops from original dataset
+python src/train_maskrcnn_crops.py --mode prepare-gt
+
+
+
+
+
+
+#yolo with EfficientNet
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth
+
+
+
+
+# 1. Train EfficientNet classifier (uses same crops as Mask R-CNN)
+python src/train_effnet.py --mode train --crops-dir data/crops_gt_sam --epochs 50
+
+# 2. Train Mask R-CNN segmenter
+python src/train_maskrcnn_crops.py --mode train --crops-dir data/crops_gt_sam --epochs 100
+
+# 3. Evaluate EfficientNet
+python src/train_effnet.py --mode val --crops-dir data/crops_gt_sam
+
+# 4. Classify a single crop
+python src/train_effnet.py --mode predict --image "data/crops_gt_sam/images/some_crop.png"
+
+
+
+
+
+
+#check with effnet
+python src/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s24.png" --effnet experiments/efficientnet_best.pth  
+
+
+
+#Evaluate Accuracy of Yolo
+python src/train_yolo.py --mode val --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml
+
+================================================================================
+DATA AUGMENTATION (CRITICAL FOR SMALL DATASETS)
+================================================================================
+
+The enhanced augmentation script creates a new dataset with both original + augmented images.
+This is ESSENTIAL for small datasets (< 200 images) to improve accuracy.
+
+# Standard augmentation (10x copies per image, medium severity)
+# Input: 50 train images → Output: 550 train images (50 original + 500 augmented)
+python src/augment_data.py --input data/yolo --output data/yolo_augmented_enhanced --factor 10 --severity medium
+
+# Heavy augmentation for very small datasets (20x copies, more aggressive transforms)
+python src/augment_data.py --input data/yolo --output data/yolo_aug_heavy --factor 20 --severity heavy
+
+# Light augmentation (5x copies, minimal transforms)
+python src/augment_data.py --input data/yolo --output data/yolo_aug_light --factor 5 --severity light
+
+# Also augment validation set (useful for very small datasets < 100 total images)
+python src/augment_data.py --input data/yolo --output data/yolo_augmented --factor 10 --augment-val --val-factor 3
+
+# After augmentation, train with the new dataset
+python src/train_yolo.py --mode train --data data/yolo_augmented_enhanced/dataset.yaml --epochs 300 --model-size m --batch 8 --imgsz 1280
+
+# Key benefits:
+# - Includes original data + augmented versions
+# - Smart augmentation preserves small objects (fibers)
+# - Class-aware statistics
+# - 10-20x more effective training data
+# - Better generalization and accuracy
