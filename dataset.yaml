@@ -1,0 +1,9 @@
+names:
+  0: fiber
+  1: film
+  2: fragment
+nc: 3
+path: D:\Research_Dev\mp-detect\data\yolo
+test: images/test
+train: images/train
+val: images/val
