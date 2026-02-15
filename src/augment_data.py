@@ -6,12 +6,16 @@ a very small dataset. It generates augmented copies of images with corresponding
 updated YOLO labels. Includes original data + augmented versions.
 
 Features:
-- Class-aware augmentation (more augmentation for underrepresented classes)
+- Class-balanced oversampling (more augmentation for underrepresented classes)
 - Smart augmentation that preserves small objects (fibers)
+- Target-count mode for exact dataset sizes
 - Progress tracking
 - Original data included in output
 
 Usage:
+    # Target-count mode: exactly 800 train + 200 val images (recommended)
+    python src/augment_data.py --input data/yolo --output data/yolo_augmented --target-train 800 --target-val 200
+    
     # Standard augmentation (10x, medium severity)
     python src/augment_data.py --input data/yolo --output data/yolo_augmented --factor 10
     
@@ -24,11 +28,12 @@ Usage:
 
 import argparse
 import cv2
+import math
 import numpy as np
 from pathlib import Path
 import shutil
 import random
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from collections import defaultdict
 import albumentations as A
 
@@ -41,7 +46,7 @@ def parse_yolo_label(label_path: str) -> List[Tuple[int, float, float, float, fl
             for line in f:
                 parts = line.strip().split()
                 if len(parts) >= 5:
-                    cls = int(parts[0])
+                    cls = int(float(parts[0]))
                     x_center, y_center, width, height = map(float, parts[1:5])
                     labels.append((cls, x_center, y_center, width, height))
     return labels
@@ -97,25 +102,37 @@ def albumentations_to_yolo(bboxes: List, class_labels: List, img_height: int, im
     return labels
 
 
-def get_class_distribution(input_path: Path) -> Dict[int, int]:
-    """Count instances per class in training set."""
+def get_class_distribution(label_dir: Path) -> Dict[int, int]:
+    """Count instances per class in a label directory."""
     class_counts = defaultdict(int)
-    for label_file in (input_path / 'labels' / 'train').glob('*.txt'):
+    for label_file in label_dir.glob('*.txt'):
         labels = parse_yolo_label(str(label_file))
         for cls, _, _, _, _ in labels:
             class_counts[cls] += 1
     return dict(class_counts)
 
 
-def get_augmentation_pipeline(severity: str = 'medium', preserve_small: bool = True) -> A.Compose:
+def get_image_class_info(input_path: Path, split: str) -> Dict[str, set]:
+    """Get which classes each image contains."""
+    image_classes = {}
+    label_dir = input_path / 'labels' / split
+    for label_file in label_dir.glob('*.txt'):
+        labels = parse_yolo_label(str(label_file))
+        classes_in_image = set(cls for cls, _, _, _, _ in labels)
+        image_classes[label_file.stem] = classes_in_image
+    return image_classes
+
+
+def get_augmentation_pipeline(severity: str = 'medium', for_fibers: bool = False) -> A.Compose:
     """
     Create augmentation pipeline with bbox support.
     
     Args:
         severity: 'light', 'medium', or 'heavy'
-        preserve_small: If True, use higher min_visibility to preserve small objects like fibers
+        for_fibers: If True, use gentler transforms that preserve thin elongated objects
     """
-    min_vis = 0.4 if preserve_small else 0.3
+    # Higher min_visibility for fibers (thin objects easily clipped)
+    min_vis = 0.5 if for_fibers else 0.3
     
     if severity == 'light':
         transform = A.Compose([
@@ -126,36 +143,60 @@ def get_augmentation_pipeline(severity: str = 'medium', preserve_small: bool = T
         ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=min_vis))
     
     elif severity == 'medium':
-        transform = A.Compose([
-            A.HorizontalFlip(p=0.5),
-            A.VerticalFlip(p=0.5),
-            A.RandomRotate90(p=0.5),
-            A.Rotate(limit=45, border_mode=cv2.BORDER_REFLECT, p=0.6),  # Increased for microplastics
-            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
-            A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=30, val_shift_limit=20, p=0.5),
-            A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
-            A.Blur(blur_limit=3, p=0.2),
-            A.CLAHE(clip_limit=2.0, p=0.3),
-            A.Affine(
-                scale=(0.9, 1.1),
-                translate_percent=(-0.1, 0.1),
-                shear=(-5, 5),
-                p=0.5
-            ),
-        ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=min_vis))
+        if for_fibers:
+            # Gentler pipeline for fiber-containing images
+            # Avoids aggressive scaling/shearing that can destroy thin objects
+            transform = A.Compose([
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.RandomRotate90(p=0.5),
+                A.Rotate(limit=180, border_mode=cv2.BORDER_REFLECT, p=0.7),  # Full rotation is safe for fibers
+                A.RandomBrightnessContrast(brightness_limit=0.25, contrast_limit=0.25, p=0.6),
+                A.HueSaturationValue(hue_shift_limit=15, sat_shift_limit=35, val_shift_limit=25, p=0.6),
+                A.OneOf([
+                    A.CLAHE(clip_limit=3.0),
+                    A.Sharpen(alpha=(0.2, 0.5), lightness=(0.5, 1.0)),  # Sharpening helps fiber edges
+                ], p=0.5),
+                A.GaussNoise(std_range=(0.03, 0.12), p=0.3),
+                # Very gentle affine - no aggressive scaling/shearing
+                A.Affine(
+                    scale=(0.95, 1.05),
+                    translate_percent=(-0.05, 0.05),
+                    shear=(-2, 2),
+                    p=0.4
+                ),
+                A.RandomGamma(gamma_limit=(85, 115), p=0.3),
+            ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=min_vis))
+        else:
+            transform = A.Compose([
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.RandomRotate90(p=0.5),
+                A.Rotate(limit=45, border_mode=cv2.BORDER_REFLECT, p=0.6),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=30, val_shift_limit=20, p=0.5),
+                A.GaussNoise(std_range=(0.03, 0.15), p=0.3),
+                A.Blur(blur_limit=3, p=0.2),
+                A.CLAHE(clip_limit=2.0, p=0.3),
+                A.Affine(
+                    scale=(0.9, 1.1),
+                    translate_percent=(-0.1, 0.1),
+                    shear=(-5, 5),
+                    p=0.5
+                ),
+            ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=min_vis))
     
     else:  # heavy
         transform = A.Compose([
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),
-            A.Rotate(limit=180, border_mode=cv2.BORDER_REFLECT, p=0.7),  # Full rotation for microplastics
+            A.Rotate(limit=180, border_mode=cv2.BORDER_REFLECT, p=0.7),
             A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.7),
             A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=40, val_shift_limit=30, p=0.7),
             A.OneOf([
-                A.GaussNoise(var_limit=(10.0, 80.0)),
+                A.GaussNoise(std_range=(0.03, 0.2)),
                 A.ISONoise(),
-                A.MultiplicativeNoise(),
             ], p=0.4),
             A.OneOf([
                 A.Blur(blur_limit=5),
@@ -175,16 +216,142 @@ def get_augmentation_pipeline(severity: str = 'medium', preserve_small: bool = T
             ),
             A.Perspective(scale=(0.02, 0.08), p=0.3),
             A.RandomGamma(gamma_limit=(80, 120), p=0.3),
-            A.RandomShadow(shadow_roi=(0, 0, 1, 1), p=0.2),
         ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=min_vis))
     
     return transform
 
 
-def augment_dataset(input_dir: str, output_dir: str, factor: int = 5, severity: str = 'medium',
-                    augment_val: bool = False, val_factor: int = 3):
+def compute_class_weights(input_path: Path, split: str) -> Dict[str, float]:
     """
-    Augment the YOLO dataset with enhanced class-aware augmentation.
+    Compute per-image augmentation weight based on class balance.
+    
+    Images containing underrepresented classes get higher weights,
+    meaning they'll be augmented more times.
+    """
+    class_names = {0: 'fiber', 1: 'film', 2: 'fragment'}
+    
+    # Count total instances per class  
+    class_counts = get_class_distribution(input_path / 'labels' / split)
+    if not class_counts:
+        return {}
+    
+    # Find the maximum class count (target for balancing)
+    max_count = max(class_counts.values())
+    
+    # Compute class multipliers (how much to oversample each class)
+    class_multiplier = {}
+    for cls in class_counts:
+        class_multiplier[cls] = max_count / class_counts[cls] if class_counts[cls] > 0 else 1.0
+    
+    print(f"\n  Class balancing weights:")
+    for cls in sorted(class_counts.keys()):
+        print(f"    {class_names.get(cls, f'class_{cls}')}: {class_counts[cls]} instances → {class_multiplier[cls]:.2f}x weight")
+    
+    # Get per-image class info
+    image_classes = get_image_class_info(input_path, split)
+    
+    # Compute per-image weight = max multiplier of classes it contains
+    image_weights = {}
+    for stem, classes in image_classes.items():
+        if classes:
+            weight = max(class_multiplier.get(c, 1.0) for c in classes)
+        else:
+            weight = 1.0
+        image_weights[stem] = weight
+    
+    return image_weights
+
+
+def _augment_single_image(img_file: Path, input_path: Path, output_path: Path,
+                          split: str, num_augments: int, transform: A.Compose,
+                          fiber_transform: A.Compose, image_classes: Dict[str, set],
+                          max_retries: int = 3) -> Tuple[int, int]:
+    """
+    Augment a single image. Returns (generated_count, skipped_count).
+    Uses fiber-specific transform for images containing fibers.
+    """
+    generated = 0
+    skipped = 0
+    
+    img = cv2.imread(str(img_file))
+    if img is None:
+        return 0, 0
+    
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    height, width = img.shape[:2]
+    
+    label_file = input_path / 'labels' / split / f"{img_file.stem}.txt"
+    labels = parse_yolo_label(str(label_file))
+    bboxes, class_labels = yolo_to_albumentations(labels, height, width)
+    
+    # Copy original
+    shutil.copy(img_file, output_path / 'images' / split / img_file.name)
+    if label_file.exists():
+        shutil.copy(label_file, output_path / 'labels' / split / label_file.name)
+    
+    # Choose transform based on whether image contains fibers
+    has_fibers = 0 in image_classes.get(img_file.stem, set())
+    active_transform = fiber_transform if has_fibers else transform
+    
+    # Generate augmented versions
+    for i in range(num_augments):
+        success = False
+        for retry in range(max_retries):
+            try:
+                augmented = active_transform(image=img_rgb, bboxes=bboxes, class_labels=class_labels)
+                aug_img = augmented['image']
+                aug_bboxes = augmented['bboxes']
+                aug_class_labels = augmented['class_labels']
+                
+                # For fiber images: ensure fibers survived the augmentation
+                if has_fibers and len(bboxes) > 0:
+                    orig_fiber_count = sum(1 for c in class_labels if c == 0)
+                    aug_fiber_count = sum(1 for c in aug_class_labels if c == 0)
+                    # Retry if we lost more than 40% of fibers
+                    if orig_fiber_count > 0 and aug_fiber_count < orig_fiber_count * 0.6:
+                        if retry < max_retries - 1:
+                            continue  # retry
+                
+                # General quality check: don't lose too many boxes
+                if len(aug_bboxes) < len(bboxes) * 0.4 and len(bboxes) > 0:
+                    if retry < max_retries - 1:
+                        continue
+                    skipped += 1
+                    break
+                
+                # Convert back to YOLO format
+                aug_labels = albumentations_to_yolo(aug_bboxes, aug_class_labels, height, width)
+                
+                # Save augmented image as JPEG (quality 95 - visually lossless, much smaller)
+                aug_name = f"{img_file.stem}_aug{i:03d}.jpg"
+                aug_img_bgr = cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(str(output_path / 'images' / split / aug_name), aug_img_bgr,
+                            [cv2.IMWRITE_JPEG_QUALITY, 95])
+                
+                # Save augmented labels
+                aug_label_name = f"{img_file.stem}_aug{i:03d}.txt"
+                save_yolo_label(aug_labels, str(output_path / 'labels' / split / aug_label_name))
+                
+                generated += 1
+                success = True
+                break
+                
+            except Exception as e:
+                if retry == max_retries - 1:
+                    skipped += 1
+                continue
+        
+        if not success and i >= num_augments:
+            break
+    
+    return generated, skipped
+
+
+def augment_dataset(input_dir: str, output_dir: str, factor: int = 5, severity: str = 'medium',
+                    augment_val: bool = False, val_factor: int = 3,
+                    target_train: Optional[int] = None, target_val: Optional[int] = None):
+    """
+    Augment the YOLO dataset with class-balanced augmentation.
     
     Args:
         input_dir: Path to original YOLO dataset
@@ -193,6 +360,8 @@ def augment_dataset(input_dir: str, output_dir: str, factor: int = 5, severity: 
         severity: Augmentation severity (light, medium, heavy)
         augment_val: Whether to also augment validation set
         val_factor: Number of augmented copies for validation images
+        target_train: If set, target total number of training images (originals + augmented)
+        target_val: If set, target total number of validation images (originals + augmented)
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -204,127 +373,98 @@ def augment_dataset(input_dir: str, output_dir: str, factor: int = 5, severity: 
     
     # Get class distribution
     print("\n" + "="*70)
-    print("ENHANCED YOLO DATASET AUGMENTATION")
+    print("ENHANCED YOLO DATASET AUGMENTATION (Class-Balanced)")
     print("="*70)
-    class_dist = get_class_distribution(input_path)
     class_names = {0: 'fiber', 1: 'film', 2: 'fragment'}
-    print("\nOriginal class distribution:")
-    for cls, count in sorted(class_dist.items()):
-        print(f"  Class {cls} ({class_names.get(cls, 'unknown')}): {count} instances")
     
-    transform = get_augmentation_pipeline(severity, preserve_small=True)
+    # --- TRAINING SET ---
+    train_images = sorted((input_path / 'images' / 'train').glob('*.*'))
+    train_images = [f for f in train_images if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}]
     
-    # Process training data
-    train_images = list((input_path / 'images' / 'train').glob('*.*'))
-    print(f"\nTraining set:")
-    print(f"  Original images: {len(train_images)}")
-    print(f"  Augmentation factor: {factor}x")
+    train_class_dist = get_class_distribution(input_path / 'labels' / 'train')
+    print("\nOriginal training class distribution:")
+    for cls in sorted(train_class_dist.keys()):
+        print(f"  Class {cls} ({class_names.get(cls, 'unknown')}): {train_class_dist[cls]} instances")
+    print(f"  Total training images: {len(train_images)}")
+    
+    # Compute class-balanced weights for training images
+    image_weights = compute_class_weights(input_path, 'train')
+    image_classes = get_image_class_info(input_path, 'train')
+    
+    # Build augmentation pipelines
+    transform = get_augmentation_pipeline(severity, for_fibers=False)
+    fiber_transform = get_augmentation_pipeline(severity, for_fibers=True)
+    
+    # Auto-calculate factor from target if specified
+    if target_train is not None:
+        if target_train <= len(train_images):
+            print(f"\n⚠️  Target train ({target_train}) <= original count ({len(train_images)}). Will copy originals only.")
+            factor = 0
+        else:
+            # Base factor, will be adjusted per-image by class weights
+            augments_needed = target_train - len(train_images)
+            # Compute weighted total to determine base factor
+            total_weight = sum(image_weights.get(f.stem, 1.0) for f in train_images)
+            # base_factor * total_weight ≈ augments_needed
+            base_factor = augments_needed / total_weight if total_weight > 0 else factor
+            # Over-generate slightly for trimming
+            base_factor = base_factor * 1.15
+            factor = max(1, math.ceil(base_factor))
+    
+    if target_val is not None:
+        augment_val = True
+        val_images = sorted((input_path / 'images' / 'val').glob('*.*'))
+        val_images = [f for f in val_images if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}]
+        val_images_count = len(val_images)
+        if target_val <= val_images_count:
+            val_factor = 0
+        else:
+            val_factor = math.ceil((target_val - val_images_count) / val_images_count) + 1
+    
+    print(f"\nTraining augmentation plan:")
+    print(f"  Base factor: {factor}x (adjusted per-image by class weight)")
     print(f"  Severity: {severity}")
-    print(f"  Total output images: {len(train_images) * (factor + 1)} ({len(train_images)} original + {len(train_images) * factor} augmented)")
+    if target_train:
+        print(f"  Target total: {target_train} images")
     
+    # Process training images with class-balanced augmentation
     total_generated = 0
-    skipped = 0
+    total_skipped = 0
     
-    print(f"\nProcessing training images...")
+    print(f"\nProcessing training images (class-balanced)...")
     for idx, img_file in enumerate(train_images, 1):
-        # Load image
-        img = cv2.imread(str(img_file))
-        if img is None:
-            print(f"  [ERROR] Could not load {img_file.name}")
-            continue
+        # Per-image augmentation count based on class weight
+        weight = image_weights.get(img_file.stem, 1.0)
+        num_augments = max(1, round(factor * weight))
         
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        height, width = img.shape[:2]
+        generated, skipped = _augment_single_image(
+            img_file, input_path, output_path, 'train',
+            num_augments, transform, fiber_transform, image_classes
+        )
+        total_generated += generated
+        total_skipped += skipped
         
-        # Load labels
-        label_file = input_path / 'labels' / 'train' / f"{img_file.stem}.txt"
-        labels = parse_yolo_label(str(label_file))
-        
-        # Convert to albumentations format
-        bboxes, class_labels = yolo_to_albumentations(labels, height, width)
-        
-        # Save original (copy)
-        shutil.copy(img_file, output_path / 'images' / 'train' / img_file.name)
-        if label_file.exists():
-            shutil.copy(label_file, output_path / 'labels' / 'train' / label_file.name)
-        
-        # Generate augmented versions
-        aug_success = 0
-        for i in range(factor):
-            try:
-                # Apply augmentation
-                augmented = transform(image=img_rgb, bboxes=bboxes, class_labels=class_labels)
-                aug_img = augmented['image']
-                aug_bboxes = augmented['bboxes']
-                aug_class_labels = augmented['class_labels']
-                
-                # Skip if too many boxes were lost (but more lenient for small datasets)
-                if len(aug_bboxes) < len(bboxes) * 0.4 and len(bboxes) > 0:
-                    skipped += 1
-                    continue
-                
-                # Convert back to YOLO format
-                aug_labels = albumentations_to_yolo(aug_bboxes, aug_class_labels, height, width)
-                
-                # Save augmented image
-                aug_name = f"{img_file.stem}_aug{i:03d}{img_file.suffix}"
-                aug_img_bgr = cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(str(output_path / 'images' / 'train' / aug_name), aug_img_bgr)
-                
-                # Save augmented labels
-                aug_label_name = f"{img_file.stem}_aug{i:03d}.txt"
-                save_yolo_label(aug_labels, str(output_path / 'labels' / 'train' / aug_label_name))
-                
-                total_generated += 1
-                aug_success += 1
-                
-            except Exception as e:
-                print(f"  [WARNING] Augmentation failed for {img_file.name} (aug {i}): {e}")
-                skipped += 1
-                continue
-        
-        print(f"  [{idx}/{len(train_images)}] {img_file.name} → {aug_success} augmented copies")
+        classes_str = ','.join(class_names.get(c, '?') for c in sorted(image_classes.get(img_file.stem, set())))
+        print(f"  [{idx}/{len(train_images)}] {img_file.name} [{classes_str}] → {generated} augmented (weight={weight:.1f}x)")
     
-    # Process validation set
-    val_images = list((input_path / 'images' / 'val').glob('*.*'))
+    # --- VALIDATION SET ---
+    val_images = sorted((input_path / 'images' / 'val').glob('*.*'))
+    val_images = [f for f in val_images if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}]
+    
     if augment_val and val_images:
+        val_image_classes = get_image_class_info(input_path, 'val')
         print(f"\nProcessing validation images (augmentation enabled)...")
         print(f"  Original images: {len(val_images)}")
         print(f"  Augmentation factor: {val_factor}x")
         
         val_generated = 0
         for idx, img_file in enumerate(val_images, 1):
-            img = cv2.imread(str(img_file))
-            if img is None:
-                continue
-            
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            height, width = img.shape[:2]
-            
-            label_file = input_path / 'labels' / 'val' / f"{img_file.stem}.txt"
-            labels = parse_yolo_label(str(label_file))
-            bboxes, class_labels = yolo_to_albumentations(labels, height, width)
-            
-            # Copy original
-            shutil.copy(img_file, output_path / 'images' / 'val' / img_file.name)
-            if label_file.exists():
-                shutil.copy(label_file, output_path / 'labels' / 'val' / label_file.name)
-            
-            # Generate fewer augmented versions for val
-            for i in range(val_factor):
-                try:
-                    augmented = transform(image=img_rgb, bboxes=bboxes, class_labels=class_labels)
-                    aug_labels = albumentations_to_yolo(augmented['bboxes'], augmented['class_labels'], height, width)
-                    
-                    aug_name = f"{img_file.stem}_aug{i:03d}{img_file.suffix}"
-                    aug_img_bgr = cv2.cvtColor(augmented['image'], cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(str(output_path / 'images' / 'val' / aug_name), aug_img_bgr)
-                    save_yolo_label(aug_labels, str(output_path / 'labels' / 'val' / f"{img_file.stem}_aug{i:03d}.txt"))
-                    val_generated += 1
-                except:
-                    continue
-            
-            print(f"  [{idx}/{len(val_images)}] {img_file.name}")
+            generated, _ = _augment_single_image(
+                img_file, input_path, output_path, 'val',
+                val_factor, transform, fiber_transform, val_image_classes
+            )
+            val_generated += generated
+            print(f"  [{idx}/{len(val_images)}] {img_file.name} → {generated} augmented")
         
         print(f"  Generated {val_generated} augmented validation images")
     else:
@@ -363,22 +503,51 @@ nc: 3
     with open(output_path / 'dataset.yaml', 'w') as f:
         f.write(dataset_config)
     
-    # Count final images
+    # Trim to exact target counts if specified
+    if target_train is not None:
+        _trim_to_target(output_path / 'images' / 'train', output_path / 'labels' / 'train',
+                        target_train, train_images, 'train')
+    
+    if target_val is not None:
+        orig_val_names = [f.name for f in (input_path / 'images' / 'val').glob('*.*')]
+        _trim_to_target(output_path / 'images' / 'val', output_path / 'labels' / 'val',
+                        target_val, None, 'val', orig_val_names)
+    
+    # Count final images and class distribution
     final_train = len(list((output_path / 'images' / 'train').glob('*.*')))
     final_val = len(list((output_path / 'images' / 'val').glob('*.*')))
+    final_train_dist = get_class_distribution(output_path / 'labels' / 'train')
+    final_val_dist = get_class_distribution(output_path / 'labels' / 'val')
     
     print(f"\n{'='*70}")
     print("✅ AUGMENTATION COMPLETE")
     print(f"{'='*70}")
+    
     print(f"\nTraining set:")
     print(f"  Original images:     {len(train_images)}")
     print(f"  Augmented generated: {total_generated}")
-    print(f"  Skipped (quality):   {skipped}")
-    print(f"  Total in output:     {final_train} ({len(train_images)} original + {total_generated} augmented)")
-    print(f"  Augmentation ratio:  {total_generated/len(train_images):.1f}x effective")
+    print(f"  Skipped (quality):   {total_skipped}")
+    print(f"  Total in output:     {final_train}")
+    if target_train:
+        ok = '✅ YES' if final_train == target_train else f'⚠️ NO ({final_train}/{target_train})'
+        print(f"  Target achieved:     {ok}")
+    
+    print(f"\n  Final class distribution (train):")
+    for cls in sorted(final_train_dist.keys()):
+        orig = train_class_dist.get(cls, 0)
+        final = final_train_dist[cls]
+        print(f"    {class_names.get(cls, f'class_{cls}')}: {orig} → {final} instances ({final/orig:.1f}x)" if orig > 0 else f"    {class_names.get(cls, f'class_{cls}')}: {final} instances")
     
     print(f"\nValidation set:")
     print(f"  Total in output:     {final_val}")
+    if target_val:
+        ok = '✅ YES' if final_val == target_val else f'⚠️ NO ({final_val}/{target_val})'
+        print(f"  Target achieved:     {ok}")
+    
+    if final_val_dist:
+        print(f"\n  Final class distribution (val):")
+        for cls in sorted(final_val_dist.keys()):
+            print(f"    {class_names.get(cls, f'class_{cls}')}: {final_val_dist[cls]} instances")
     
     print(f"\nOutput:")
     print(f"  Directory: {output_path}")
@@ -391,13 +560,57 @@ nc: 3
     print(f"{'='*70}\n")
 
 
+def _trim_to_target(images_dir: Path, labels_dir: Path, target: int,
+                    original_images=None, split_name: str = '', orig_names: list = None):
+    """
+    Trim augmented images to hit exact target count.
+    Only removes augmented images (with '_aug' in name), never originals.
+    """
+    all_images = sorted(images_dir.glob('*.*'))
+    current_count = len(all_images)
+    
+    if current_count <= target:
+        if current_count < target:
+            print(f"  ⚠️  {split_name}: Only generated {current_count}/{target} images (not enough source images)")
+        return
+    
+    # Build set of original filenames to protect
+    if orig_names is not None:
+        protected = set(orig_names)
+    elif original_images is not None:
+        protected = {f.name for f in original_images}
+    else:
+        protected = set()
+    
+    # Separate augmented from originals
+    augmented = [f for f in all_images if f.name not in protected]
+    
+    excess = current_count - target
+    if excess > len(augmented):
+        print(f"  ⚠️  {split_name}: Cannot trim enough (need to remove {excess} but only {len(augmented)} augmented)")
+        excess = len(augmented)
+    
+    # Randomly select which augmented images to remove
+    to_remove = random.sample(augmented, excess)
+    for img_file in to_remove:
+        img_file.unlink()
+        label_file = labels_dir / f"{img_file.stem}.txt"
+        if label_file.exists():
+            label_file.unlink()
+    
+    print(f"  Trimmed {split_name}: removed {excess} surplus augmented images → {target} total")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Enhanced YOLO Dataset Augmentation for Microplastic Detection',
+        description='Enhanced YOLO Dataset Augmentation for Microplastic Detection (Class-Balanced)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Standard augmentation (10x, medium severity)
+  # Target-count mode: exactly 800 train + 200 val images (recommended)
+  python src/augment_data.py --input data/yolo --output data/yolo_augmented --target-train 800 --target-val 200
+  
+  # Standard factor-based augmentation (10x, medium severity)
   python src/augment_data.py --input data/yolo --output data/yolo_augmented --factor 10
   
   # Heavy augmentation for very small datasets (20x)
@@ -419,6 +632,10 @@ Examples:
                         help='Also augment validation set (useful for very small datasets)')
     parser.add_argument('--val-factor', type=int, default=3,
                         help='Augmentation factor for validation set if --augment-val is used (default: 3)')
+    parser.add_argument('--target-train', type=int, default=None,
+                        help='Target total training images (originals + augmented). Overrides --factor.')
+    parser.add_argument('--target-val', type=int, default=None,
+                        help='Target total validation images (originals + augmented). Enables val augmentation.')
     
     args = parser.parse_args()
     
@@ -435,7 +652,9 @@ Examples:
         print(f"❌ Error: Input directory not found: {args.input}")
         return
     
-    augment_dataset(args.input, args.output, args.factor, args.severity, args.augment_val, args.val_factor)
+    augment_dataset(args.input, args.output, args.factor, args.severity, 
+                    args.augment_val, args.val_factor,
+                    args.target_train, args.target_val)
 
 
 if __name__ == "__main__":

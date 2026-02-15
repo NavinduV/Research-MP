@@ -170,3 +170,15 @@ python src/train_yolo.py --mode train --data data/yolo_augmented_enhanced/datase
 # - Class-aware statistics
 # - 10-20x more effective training data
 # - Better generalization and accuracy
+
+
+
+
+
+#Train EfficientNet
+#1 - cropping dataset for the preparation before training effnet (input dataset - yolo-dir, output directory - crops-dir)
+python src/train_maskrcnn_crops.py --mode prepare-gt --yolo-dir data/yolo_augmented --crops-dir data/crops_augmented
+
+#2 - training efficientnet
+python src/train_effnet.py --mode train --crops-dir data/crops_augmented 
+--epochs 50

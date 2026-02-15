@@ -454,7 +454,7 @@ def prepare_from_yolo_labels(yolo_dir: str = 'data/yolo', output_dir: str = 'dat
                 if len(parts) < 5:
                     continue
 
-                cls_id = int(parts[0])
+                cls_id = int(float(parts[0]))
                 cx_n, cy_n, bw_n, bh_n = map(float, parts[1:5])
 
                 # Convert normalised → pixel coords
