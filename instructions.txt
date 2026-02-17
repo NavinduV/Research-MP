@@ -182,3 +182,18 @@ python src/train_maskrcnn_crops.py --mode prepare-gt --yolo-dir data/yolo_augmen
 #2 - training efficientnet
 python src/train_effnet.py --mode train --crops-dir data/crops_augmented 
 --epochs 50
+
+
+
+#Cellpose mask generation
+# Full run
+venv\Scripts\python.exe src/cellpose_auto_annotate.py --mode annotate --crops-dir data/crops --class-aware
+
+# On CPU explicitly (slower)
+venv\Scripts\python.exe src/cellpose_auto_annotate.py --mode annotate --crops-dir data/crops --class-aware --no-gpu
+
+
+
+
+#Running the full pipeline
+python src/pipeline_inference.py --image "datasets/stitched-validation" --yolo experiments/yolo/best.pt --maskrcnn experiments/maskrcnn/maskrcnn_crops_best.pth --effnet experiments/efficientnet/efficientnet_best.pth

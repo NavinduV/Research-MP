@@ -378,8 +378,8 @@ def validate(model_path: str, data_yaml: str):
     
     return metrics
 
-
-def predict(model_path: str, image_path: str, save_dir: str = "experiments/augmented_predictions", 
+# Output directory path
+def predict(model_path: str, image_path: str, save_dir: str = "prediction/yolo_x_effnet", 
             conf: float = 0.1, filter_only: bool = True, effnet_path: str = None):
     """
     Run inference on an image.

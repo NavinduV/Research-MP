@@ -62,9 +62,9 @@ logs/
 /data/raw/
 /data/stitched/
 /data/patches/
-/dev-test/raw/
-/dev-test/stitched.zip
-/dev-test/validation/
+/datasets/raw/
+/datasets/stitched.zip
+/datasets/validation/
 /experiments/
 /notebooks/.ipynb_checkpoints/
 
@@ -84,7 +84,12 @@ yolov8s.pt
 yolov8n.pt
 yolov8x.pt
 
-sam_vit_h_4b8939.pth
+
+/sam_vit_b_01ec64.pth
+
+/sam_vit_h_4b8939.pth
+
 
 
 data/
+predictions/
