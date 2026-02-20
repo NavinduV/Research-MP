@@ -7,6 +7,9 @@ pip install -r requirements.txt
 Server start:
 uvicorn src.app.main:app --reload --host 127.0.0.1 --port 8000
 
+#running the full pipeline
+
+
 Run label sudio:
 label-studio
 
@@ -107,9 +110,6 @@ python src/train_maskrcnn_crops.py --mode prepare-gt
 
 
 
-
-
-
 #yolo with EfficientNet
 python src/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth
 
@@ -196,4 +196,4 @@ venv\Scripts\python.exe src/cellpose_auto_annotate.py --mode annotate --crops-di
 
 
 #Running the full pipeline
-python src/pipeline_inference.py --image "datasets/stitched-validation" --yolo experiments/yolo/best.pt --maskrcnn experiments/maskrcnn/maskrcnn_crops_best.pth --effnet experiments/efficientnet/efficientnet_best.pth
+python src/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/yolo/best.pt --maskrcnn experiments/maskrcnn/maskrcnn_crops_best.pth --effnet experiments/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3

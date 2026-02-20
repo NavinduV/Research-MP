@@ -69,6 +69,60 @@ COLORS = {
 
 
 # ============================================================================
+# Class-Agnostic NMS (ported from train_yolo.py)
+# ============================================================================
+
+def class_agnostic_nms(boxes, iou_threshold=0.3):
+    """
+    Class-agnostic Non-Maximum Suppression.
+
+    Keeps only the highest-confidence detection per physical location,
+    regardless of predicted class.  This ensures each real microplastic
+    produces exactly ONE bounding box.
+
+    Args:
+        boxes: list/array  [[x1, y1, x2, y2, cls_id, conf], ...]
+        iou_threshold: IoU above which the lower-confidence box is suppressed.
+    Returns:
+        kept: list of boxes that survived NMS (same format as input rows)
+    """
+    if len(boxes) == 0:
+        return []
+
+    boxes = np.array(boxes, dtype=np.float64)
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+    scores = boxes[:, 5]
+
+    areas = (x2 - x1) * (y2 - y1)
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        inter = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
+        union = areas[i] + areas[order[1:]] - inter
+        iou = inter / np.maximum(union, 1e-6)
+
+        min_area = np.minimum(areas[i], areas[order[1:]])
+        containment = inter / np.maximum(min_area, 1e-6)
+
+        inds = np.where((iou <= iou_threshold) & (containment <= 0.6))[0]
+        order = order[inds + 1]
+
+    return boxes[keep].tolist()
+
+
+# ============================================================================
 # Model Loaders
 # ============================================================================
 
@@ -147,17 +201,41 @@ def run_yolo_detection(yolo_model, image_path: str, conf_threshold: float = 0.25
     """
     results = yolo_model(image_path, conf=conf_threshold, verbose=False)[0]
 
+    # Build a safe name lookup from the model's own class dict
+    # e.g. {0: 'fiber', 1: 'film', 2: 'fragment'} or whatever the model reports.
+    # Then normalise to the three known EfficientNet class names so downstream
+    # code stays consistent regardless of how the model was exported.
+    _NORM = {
+        'fiber': 'fiber', 'fibre': 'fiber',
+        'film': 'film',
+        'fragment': 'fragment', 'frag': 'fragment',
+    }
+
+    def _resolve_name(cid: int) -> tuple[int, str]:
+        """Return (normalised_class_id, class_name) for a YOLO class index."""
+        raw = results.names.get(cid, '').lower().strip()
+        name = _NORM.get(raw, None)
+        if name is None:
+            # Fallback: map by position if within range, else default to 'fragment'
+            if cid < len(EFFNET_CLASS_NAMES):
+                name = EFFNET_CLASS_NAMES[cid]
+            else:
+                name = 'fragment'
+        norm_id = EFFNET_CLASS_NAMES.index(name)
+        return norm_id, name
+
     detections = []
     for box in results.boxes:
         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
         class_id = int(box.cls[0].cpu().numpy())
         conf = float(box.conf[0].cpu().numpy())
+        norm_id, class_name = _resolve_name(class_id)
 
         detections.append({
             'box': [int(x1), int(y1), int(x2), int(y2)],
-            'class_id': class_id,
+            'class_id': norm_id,
             'confidence': conf,
-            'class_name': EFFNET_CLASS_NAMES[class_id]
+            'class_name': class_name,
         })
 
     return detections
@@ -221,11 +299,21 @@ def classify_crop(effnet_model, crop_bgr: np.ndarray, device: torch.device, tran
 def segment_crop(maskrcnn_model, crop_bgr: np.ndarray, class_id: int, device: torch.device,
                  transform, mask_threshold: float = 0.5):
     """
-    Run Mask R-CNN segmentation on a cropped detection.
+    Run Mask R-CNN **purely for foreground segmentation** on a cropped detection.
+
+    The crop already contains a confirmed microplastic (validated by YOLO + EfficientNet).
+    Mask R-CNN is used ONLY to produce a pixel-level mask — it does NOT filter or
+    re-validate the detection.
+
+    Strategy:
+        1. Run Mask R-CNN on the crop
+        2. Merge ALL predicted masks into one combined foreground mask
+           (class-agnostic — we already know the class from EfficientNet)
+        3. If Mask R-CNN finds nothing, fall back to an ellipse mask
 
     Returns:
         mask: Binary mask for the crop (H, W)
-        confidence: Mask confidence score
+        confidence: Best mask confidence score (for metadata only)
     """
     crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
     transformed = transform(image=crop_rgb)
@@ -235,31 +323,27 @@ def segment_crop(maskrcnn_model, crop_bgr: np.ndarray, class_id: int, device: to
         predictions = maskrcnn_model(input_tensor)[0]
 
     masks = predictions['masks'].cpu().numpy()
-    labels = predictions['labels'].cpu().numpy()
     scores = predictions['scores'].cpu().numpy()
 
-    # Map to Mask R-CNN class
-    target_class = YOLO_TO_MASKRCNN_CLASS.get(class_id, 1)
-
-    # Find highest scoring mask of the target class
-    best_mask = None
-    best_score = 0.0
-
-    for i, (mask, label, score) in enumerate(zip(masks, labels, scores)):
-        if label == target_class and score > best_score:
-            best_mask = mask[0]
-            best_score = score
-
-    # If no matching class found, use highest scoring mask regardless
-    if best_mask is None and len(masks) > 0:
-        best_idx = np.argmax(scores)
+    # ---- Class-agnostic mask merging ----
+    # We trust YOLO+EfficientNet for classification.
+    # From Mask R-CNN we only want the best foreground mask(s).
+    if len(masks) > 0:
+        # Take the single highest-confidence mask (regardless of class)
+        best_idx = int(np.argmax(scores))
         best_mask = masks[best_idx][0]
         best_score = float(scores[best_idx])
+    else:
+        best_mask = None
+        best_score = 0.0
 
-    # Fallback: ellipse mask
+    # Fallback: ellipse mask when Mask R-CNN produces nothing
     if best_mask is None:
-        best_mask = np.zeros((256, 256), dtype=np.float32)
-        cv2.ellipse(best_mask, (128, 128), (100, 60), 0, 0, 360, 1.0, -1)
+        ch, cw = crop_bgr.shape[:2]
+        best_mask = np.zeros((ch, cw), dtype=np.float32)
+        center = (cw // 2, ch // 2)
+        axes = (max(1, cw // 2 - 2), max(1, ch // 2 - 2))
+        cv2.ellipse(best_mask, center, axes, 0, 0, 360, 1.0, -1)
         best_score = 0.5
 
     # Binarize and resize to crop size
@@ -393,21 +477,24 @@ def run_pipeline(
     use_effnet: bool = True,
     pixel_to_micron: float = 1.0,
     crop_padding: int = 30,
+    nms_iou: float = 0.3,
 ):
     """
     Run the complete YOLO + EfficientNet + Mask R-CNN pipeline.
 
-    Pipeline flow:
-        Image -> YOLO (detect) -> Crop each detection ->
-            |-- EfficientNet -> refined classification (fiber/film/fragment)
-            +-- Mask R-CNN   -> precise pixel mask
-        -> Size calculation from mask -> Report
+    Corrected pipeline flow (matches proven train_yolo.py predict accuracy):
+        1. YOLO  -> raw bounding boxes
+        2. Class-agnostic NMS -> remove duplicate / overlapping boxes
+        3. EfficientNet -> reclassify each surviving crop (fiber/film/fragment)
+        4. Mask R-CNN -> generate pixel mask per crop (segmentation ONLY,
+                         no re-validation, no class filtering)
+        5. Size calculation from mask -> report
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     print(f"\n{'='*70}")
     print("  MICROPLASTIC DETECTION PIPELINE")
-    print(f"  YOLO -> Crop -> EfficientNet (classify) + Mask R-CNN (segment) -> Size")
+    print(f"  YOLO -> NMS -> EfficientNet (classify) -> Mask R-CNN (mask) -> Size")
     print(f"{'='*70}")
     print(f"  Device         : {device}")
     print(f"  Image          : {image_path}")
@@ -415,11 +502,12 @@ def run_pipeline(
     print(f"  EfficientNet   : {effnet_model_path if use_effnet else 'DISABLED'}")
     print(f"  Mask R-CNN     : {maskrcnn_model_path if use_maskrcnn else 'DISABLED (ellipse fallback)'}")
     print(f"  YOLO conf      : {yolo_conf}")
+    print(f"  NMS IoU        : {nms_iou}")
     print(f"  Pixel->um ratio: {pixel_to_micron}")
     print(f"{'='*70}\n")
 
     # ---- Load Models ----
-    print("[1/5] Loading models...")
+    print("[1/6] Loading models...")
     yolo_model = YOLO(yolo_model_path)
 
     maskrcnn_model = None
@@ -444,27 +532,47 @@ def run_pipeline(
     h, w = image.shape[:2]
     print(f"  Image size: {w} x {h}")
 
-    # ---- Stage 1: YOLO Detection ----
-    print(f"\n[2/5] YOLO detection (conf={yolo_conf})...")
-    detections = run_yolo_detection(yolo_model, image_path, yolo_conf)
-    print(f"  Found {len(detections)} microplastics")
+    # ==================================================================
+    # Stage 1: YOLO Detection
+    # ==================================================================
+    print(f"\n[2/6] YOLO detection (conf={yolo_conf})...")
+    raw_detections = run_yolo_detection(yolo_model, image_path, yolo_conf)
+    print(f"  Raw YOLO detections: {len(raw_detections)}")
 
-    # ---- Stage 2 & 3: Crop -> EfficientNet + Mask R-CNN ----
-    print(f"\n[3/5] Processing {len(detections)} crops (EfficientNet + Mask R-CNN)...")
+    # ==================================================================
+    # Stage 2: Class-Agnostic NMS  (same as train_yolo.py predict)
+    # ==================================================================
+    print(f"\n[3/6] Class-agnostic NMS (iou={nms_iou})...")
+    nms_input = [
+        [d['box'][0], d['box'][1], d['box'][2], d['box'][3],
+         d['class_id'], d['confidence']]
+        for d in raw_detections
+    ]
+    nms_kept = class_agnostic_nms(nms_input, iou_threshold=nms_iou)
 
-    mask_overlay = np.zeros((h, w, 3), dtype=np.uint8)
-    results = []
+    # Rebuild detection dicts from NMS survivors
+    detections = []
+    for bx in nms_kept:
+        cid = int(bx[4])
+        detections.append({
+            'box': [int(bx[0]), int(bx[1]), int(bx[2]), int(bx[3])],
+            'class_id': cid,
+            'confidence': float(bx[5]),
+            'class_name': EFFNET_CLASS_NAMES[cid],
+        })
+    print(f"  After NMS: {len(detections)} unique microplastics "
+          f"(removed {len(raw_detections) - len(detections)} duplicates)")
 
+    # ==================================================================
+    # Stage 3: EfficientNet Classification  (class refinement only)
+    # ==================================================================
+    print(f"\n[4/6] EfficientNet classification on {len(detections)} crops...")
+
+    classified = []
     for i, det in enumerate(detections):
         box = det['box']
-        yolo_class_id = det['class_id']
-        yolo_class_name = det['class_name']
-        yolo_conf_score = det['confidence']
-
-        # Crop the detection
         crop, crop_box, rel_box = crop_detection(image, box, padding=crop_padding)
 
-        # ---- EfficientNet Classification ----
         if use_effnet and effnet_model is not None:
             effnet_class_id, effnet_class_name, effnet_conf, effnet_probs = \
                 classify_crop(effnet_model, crop, device, effnet_transform)
@@ -472,19 +580,55 @@ def run_pipeline(
             final_class_id = effnet_class_id
             classification_source = 'effnet'
         else:
-            final_class_name = yolo_class_name
-            final_class_id = yolo_class_id
+            final_class_name = det['class_name']
+            final_class_id = det['class_id']
             effnet_conf = 0.0
             effnet_probs = None
             classification_source = 'yolo'
 
-        # ---- Mask R-CNN Segmentation ----
+        classified.append({
+            **det,
+            'crop': crop,
+            'crop_box': crop_box,
+            'final_class_name': final_class_name,
+            'final_class_id': final_class_id,
+            'effnet_conf': effnet_conf,
+            'effnet_probs': effnet_probs,
+            'classification_source': classification_source,
+        })
+
+    reclassified = sum(1 for c in classified
+                       if c['class_name'] != c['final_class_name'])
+    if use_effnet:
+        print(f"  EfficientNet reclassified {reclassified}/{len(classified)} detections")
+
+    # ==================================================================
+    # Stage 4: Mask R-CNN Segmentation  (mask generation ONLY — no
+    #          re-detection, no class filtering, no validation)
+    # ==================================================================
+    print(f"\n[5/6] Mask R-CNN segmentation (mask-only, class-agnostic)...")
+
+    mask_overlay = np.zeros((h, w, 3), dtype=np.uint8)
+    results = []
+
+    for i, c in enumerate(classified):
+        box = c['box']
+        crop = c['crop']
+        crop_box = c['crop_box']
+        yolo_class_name = c['class_name']
+        yolo_conf_score = c['confidence']
+        final_class_name = c['final_class_name']
+        final_class_id = c['final_class_id']
+        effnet_conf = c['effnet_conf']
+        effnet_probs = c['effnet_probs']
+        classification_source = c['classification_source']
+
+        # ---- Mask R-CNN: pure foreground mask (class-agnostic) ----
         if use_maskrcnn and maskrcnn_model is not None:
             mask_crop, mask_conf = segment_crop(
                 maskrcnn_model, crop, final_class_id, device,
                 maskrcnn_transform, mask_threshold
             )
-            # Place mask in original image coordinates
             x1_pad, y1_pad, x2_pad, y2_pad = crop_box
             full_mask = np.zeros((h, w), dtype=np.uint8)
             full_mask[y1_pad:y2_pad, x1_pad:x2_pad] = mask_crop
@@ -532,12 +676,9 @@ def run_pipeline(
               f"Area={size_info['area_px']}px  L={size_info['length_px']}px  "
               f"W={size_info['width_px']}px")
 
-    # ---- Stage 4: Size Summary ----
-    print(f"\n[4/5] Size analysis...")
+    # ---- Stage 5: Size Summary ----
+    print(f"\n[6/6] Size analysis...")
     _print_size_summary(results, pixel_to_micron)
-
-    # ---- Stage 5: Visualization ----
-    print(f"\n[5/5] Creating visualization...")
     vis_image = _create_visualization(image, results, mask_overlay, pixel_to_micron)
 
     # Save results
@@ -709,6 +850,8 @@ def main():
                         help='YOLO confidence threshold')
     parser.add_argument('--mask-threshold', type=float, default=0.5,
                         help='Mask binarization threshold')
+    parser.add_argument('--nms-iou', type=float, default=0.3,
+                        help='IoU threshold for class-agnostic NMS (0.0-1.0)')
     parser.add_argument('--padding', type=int, default=30,
                         help='Crop padding (pixels)')
 
@@ -757,6 +900,7 @@ def main():
             use_effnet=not args.no_effnet,
             pixel_to_micron=args.pixel_to_micron,
             crop_padding=args.padding,
+            nms_iou=args.nms_iou,
         )
         all_results.append((str(img_path), result))
 

@@ -1,0 +1,260 @@
+{
+  "job_id": "5a59af0d-e927-43e1-aaf0-df5ac2da4d74",
+  "created_at": 1771542468.445286,
+  "config": {
+    "yolo_conf": 0.25,
+    "mask_threshold": 0.5,
+    "pixel_to_micron": 1.0,
+    "crop_padding": 30,
+    "use_maskrcnn": true,
+    "use_effnet": true
+  },
+  "images": [
+    {
+      "filename": "s1.png",
+      "image_size": {
+        "width": 2701,
+        "height": 2879
+      },
+      "file_index": 0,
+      "detections": [
+        {
+          "id": 1,
+          "box": [
+            21,
+            257,
+            2365,
+            2593
+          ],
+          "yolo_class": "fragment",
+          "yolo_confidence": 0.6809,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9999,
+          "effnet_probabilities": {
+            "fiber": 0.9999,
+            "film": 0.0001,
+            "fragment": 0.0
+          },
+          "mask_confidence": "0.9322",
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3834562,
+            "area_um2": 3834562.5,
+            "length_px": 2300.8,
+            "length_um": 2300.82,
+            "width_px": 2111.7,
+            "width_um": 2111.67,
+            "aspect_ratio": 1.09,
+            "perimeter_px": 8703.3,
+            "perimeter_um": 8703.31,
+            "circularity": 0.636,
+            "centroid": [
+              1209,
+              1440
+            ]
+          }
+        },
+        {
+          "id": 2,
+          "box": [
+            67,
+            59,
+            2680,
+            2795
+          ],
+          "yolo_class": "fragment",
+          "yolo_confidence": 0.6166,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9998,
+          "effnet_probabilities": {
+            "fiber": 0.9998,
+            "film": 0.0002,
+            "fragment": 0.0
+          },
+          "mask_confidence": "0.8765",
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3610254,
+            "area_um2": 3610254.0,
+            "length_px": 2267.1,
+            "length_um": 2267.09,
+            "width_px": 2087.8,
+            "width_um": 2087.82,
+            "aspect_ratio": 1.09,
+            "perimeter_px": 8409.5,
+            "perimeter_um": 8409.53,
+            "circularity": 0.642,
+            "centroid": [
+              1323,
+              1421
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "box": [
+            7,
+            65,
+            2572,
+            2757
+          ],
+          "yolo_class": "fragment",
+          "yolo_confidence": 0.2901,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9965,
+          "effnet_probabilities": {
+            "fiber": 0.9965,
+            "film": 0.0035,
+            "fragment": 0.0
+          },
+          "mask_confidence": "0.8765",
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3578337,
+            "area_um2": 3578337.0,
+            "length_px": 2245.2,
+            "length_um": 2245.21,
+            "width_px": 2073.3,
+            "width_um": 2073.32,
+            "aspect_ratio": 1.08,
+            "perimeter_px": 8401.3,
+            "perimeter_um": 8401.33,
+            "circularity": 0.637,
+            "centroid": [
+              1255,
+              1436
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "total": 3,
+        "counts": {
+          "fiber": 3,
+          "film": 0,
+          "fragment": 0
+        },
+        "per_class": {
+          "fiber": {
+            "count": 3,
+            "length": {
+              "mean": 2271.033,
+              "median": 2267.1,
+              "std": 22.868,
+              "min": 2245.2,
+              "max": 2300.8
+            },
+            "width": {
+              "mean": 2090.933,
+              "median": 2087.8,
+              "std": 15.833,
+              "min": 2073.3,
+              "max": 2111.7
+            },
+            "area": {
+              "mean": 3674384.333,
+              "median": 3610254.0,
+              "std": 114009.758,
+              "min": 3578337.0,
+              "max": 3834562.0
+            },
+            "circularity": {
+              "mean": 0.638,
+              "median": 0.637,
+              "std": 0.003,
+              "min": 0.636,
+              "max": 0.642
+            },
+            "aspect_ratio": {
+              "mean": 1.087,
+              "median": 1.09,
+              "std": 0.005,
+              "min": 1.08,
+              "max": 1.09
+            },
+            "yolo_confidence": {
+              "mean": 0.529,
+              "median": 0.617,
+              "std": 0.171,
+              "min": 0.29,
+              "max": 0.681
+            },
+            "effnet_confidence": {
+              "mean": 0.999,
+              "median": 1.0,
+              "std": 0.002,
+              "min": 0.997,
+              "max": 1.0
+            }
+          }
+        },
+        "overall": {
+          "length": {
+            "mean": 2271.033,
+            "median": 2267.1,
+            "std": 22.868,
+            "min": 2245.2,
+            "max": 2300.8
+          },
+          "area": {
+            "mean": 3674384.333,
+            "median": 3610254.0,
+            "std": 114009.758,
+            "min": 3578337.0,
+            "max": 3834562.0
+          },
+          "circularity": {
+            "mean": 0.638,
+            "median": 0.637,
+            "std": 0.003,
+            "min": 0.636,
+            "max": 0.642
+          },
+          "aspect_ratio": {
+            "mean": 1.087,
+            "median": 1.09,
+            "std": 0.005,
+            "min": 1.08,
+            "max": 1.09
+          }
+        },
+        "length_histogram": {
+          "unit": "px",
+          "counts": [
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "bin_edges": [
+            2245.2,
+            2250.76,
+            2256.32,
+            2261.88,
+            2267.44,
+            2273.0,
+            2278.56,
+            2284.12,
+            2289.68,
+            2295.24,
+            2300.8
+          ]
+        },
+        "unit": "px",
+        "pixel_to_micron": 1.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,807 @@
+{
+  "job_id": "833dd80f-7a3a-4a34-bf27-3f11f321e4bf",
+  "created_at": 1771546919.3422768,
+  "config": {
+    "yolo_conf": 0.1,
+    "mask_threshold": 0.5,
+    "pixel_to_micron": 1.0,
+    "crop_padding": 30,
+    "nms_iou": 0.3,
+    "use_maskrcnn": true,
+    "use_effnet": true
+  },
+  "images": [
+    {
+      "filename": "s4.png",
+      "image_size": {
+        "width": 3056,
+        "height": 3298
+      },
+      "file_index": 0,
+      "detections": [
+        {
+          "id": 1,
+          "box": [
+            639,
+            2282,
+            790,
+            2448
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.3544,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9998,
+          "effnet_probabilities": {
+            "fiber": 0.0002,
+            "film": 0.9998,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9216,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 5965,
+            "area_um2": 5965.0,
+            "length_px": 123.1,
+            "length_um": 123.05,
+            "width_px": 62.7,
+            "width_um": 62.69,
+            "aspect_ratio": 1.96,
+            "perimeter_px": 326.0,
+            "perimeter_um": 326.05,
+            "circularity": 0.705,
+            "centroid": [
+              715,
+              2369
+            ]
+          }
+        },
+        {
+          "id": 2,
+          "box": [
+            1281,
+            1472,
+            1398,
+            1586
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.3103,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9999,
+          "effnet_probabilities": {
+            "fiber": 0.9999,
+            "film": 0.0001,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9208,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 6335,
+            "area_um2": 6335.5,
+            "length_px": 104.7,
+            "length_um": 104.71,
+            "width_px": 86.0,
+            "width_um": 86.05,
+            "aspect_ratio": 1.22,
+            "perimeter_px": 368.8,
+            "perimeter_um": 368.84,
+            "circularity": 0.585,
+            "centroid": [
+              1345,
+              1527
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "box": [
+            1669,
+            1303,
+            1802,
+            1490
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2723,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9937,
+          "effnet_probabilities": {
+            "fiber": 0.0063,
+            "film": 0.9937,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.885,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3284,
+            "area_um2": 3284.0,
+            "length_px": 108.1,
+            "length_um": 108.14,
+            "width_px": 41.6,
+            "width_um": 41.57,
+            "aspect_ratio": 2.6,
+            "perimeter_px": 296.5,
+            "perimeter_um": 296.45,
+            "circularity": 0.47,
+            "centroid": [
+              1737,
+              1392
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "box": [
+            925,
+            1127,
+            1007,
+            1224
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2694,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.719,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2543,
+            "area_um2": 2543.0,
+            "length_px": 91.0,
+            "length_um": 90.98,
+            "width_px": 43.2,
+            "width_um": 43.21,
+            "aspect_ratio": 2.11,
+            "perimeter_px": 256.7,
+            "perimeter_um": 256.74,
+            "circularity": 0.485,
+            "centroid": [
+              964,
+              1173
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "box": [
+            776,
+            1477,
+            954,
+            1665
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2679,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.8889,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 6455,
+            "area_um2": 6455.0,
+            "length_px": 124.2,
+            "length_um": 124.19,
+            "width_px": 67.8,
+            "width_um": 67.81,
+            "aspect_ratio": 1.83,
+            "perimeter_px": 346.0,
+            "perimeter_um": 346.05,
+            "circularity": 0.677,
+            "centroid": [
+              867,
+              1573
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "box": [
+            1517,
+            1849,
+            1603,
+            1929
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.2647,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9414,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3602,
+            "area_um2": 3602.5,
+            "length_px": 76.9,
+            "length_um": 76.9,
+            "width_px": 65.8,
+            "width_um": 65.78,
+            "aspect_ratio": 1.17,
+            "perimeter_px": 245.4,
+            "perimeter_um": 245.44,
+            "circularity": 0.751,
+            "centroid": [
+              1555,
+              1904
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "box": [
+            1140,
+            906,
+            1232,
+            999
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2633,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.8637,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 1912,
+            "area_um2": 1912.5,
+            "length_px": 56.0,
+            "length_um": 56.04,
+            "width_px": 45.2,
+            "width_um": 45.22,
+            "aspect_ratio": 1.24,
+            "perimeter_px": 175.9,
+            "perimeter_um": 175.92,
+            "circularity": 0.777,
+            "centroid": [
+              1187,
+              952
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "box": [
+            772,
+            1605,
+            871,
+            1734
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2565,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9993,
+          "effnet_probabilities": {
+            "fiber": 0.0007,
+            "film": 0.9993,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.6816,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3541,
+            "area_um2": 3541.0,
+            "length_px": 92.4,
+            "length_um": 92.38,
+            "width_px": 52.8,
+            "width_um": 52.8,
+            "aspect_ratio": 1.75,
+            "perimeter_px": 260.3,
+            "perimeter_um": 260.31,
+            "circularity": 0.657,
+            "centroid": [
+              823,
+              1675
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "box": [
+            1208,
+            883,
+            1369,
+            1036
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2564,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9998,
+          "effnet_probabilities": {
+            "fiber": 0.0002,
+            "film": 0.9998,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9761,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 7463,
+            "area_um2": 7463.5,
+            "length_px": 131.2,
+            "length_um": 131.16,
+            "width_px": 76.3,
+            "width_um": 76.25,
+            "aspect_ratio": 1.72,
+            "perimeter_px": 358.3,
+            "perimeter_um": 358.29,
+            "circularity": 0.731,
+            "centroid": [
+              1287,
+              955
+            ]
+          }
+        },
+        {
+          "id": 10,
+          "box": [
+            1386,
+            2055,
+            1646,
+            2303
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.2529,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9424,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 25941,
+            "area_um2": 25941.0,
+            "length_px": 205.0,
+            "length_um": 204.95,
+            "width_px": 170.5,
+            "width_um": 170.48,
+            "aspect_ratio": 1.2,
+            "perimeter_px": 706.6,
+            "perimeter_um": 706.62,
+            "circularity": 0.653,
+            "centroid": [
+              1521,
+              2198
+            ]
+          }
+        },
+        {
+          "id": 11,
+          "box": [
+            560,
+            937,
+            610,
+            1020
+          ],
+          "yolo_class": "fragment",
+          "yolo_confidence": 0.2236,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.7913,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 805,
+            "area_um2": 805.0,
+            "length_px": 58.7,
+            "length_um": 58.7,
+            "width_px": 18.4,
+            "width_um": 18.44,
+            "aspect_ratio": 3.18,
+            "perimeter_px": 135.1,
+            "perimeter_um": 135.11,
+            "circularity": 0.554,
+            "centroid": [
+              585,
+              978
+            ]
+          }
+        },
+        {
+          "id": 12,
+          "box": [
+            691,
+            1550,
+            841,
+            1670
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.2162,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9604,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 8475,
+            "area_um2": 8475.0,
+            "length_px": 129.9,
+            "length_um": 129.85,
+            "width_px": 93.0,
+            "width_um": 92.99,
+            "aspect_ratio": 1.4,
+            "perimeter_px": 454.0,
+            "perimeter_um": 453.99,
+            "circularity": 0.517,
+            "centroid": [
+              766,
+              1594
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "box": [
+            1530,
+            1733,
+            1609,
+            1807
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.2148,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9999,
+          "effnet_probabilities": {
+            "fiber": 0.9999,
+            "film": 0.0001,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9422,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2241,
+            "area_um2": 2241.0,
+            "length_px": 73.9,
+            "length_um": 73.88,
+            "width_px": 47.2,
+            "width_um": 47.16,
+            "aspect_ratio": 1.57,
+            "perimeter_px": 258.3,
+            "perimeter_um": 258.31,
+            "circularity": 0.422,
+            "centroid": [
+              1565,
+              1765
+            ]
+          }
+        },
+        {
+          "id": 14,
+          "box": [
+            2251,
+            1533,
+            2344,
+            1680
+          ],
+          "yolo_class": "fragment",
+          "yolo_confidence": 0.1918,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9149,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2399,
+            "area_um2": 2399.5,
+            "length_px": 109.4,
+            "length_um": 109.43,
+            "width_px": 32.1,
+            "width_um": 32.11,
+            "aspect_ratio": 3.41,
+            "perimeter_px": 235.9,
+            "perimeter_um": 235.92,
+            "circularity": 0.542,
+            "centroid": [
+              2300,
+              1606
+            ]
+          }
+        },
+        {
+          "id": 15,
+          "box": [
+            1180,
+            1438,
+            1227,
+            1509
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.1592,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9395,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 884,
+            "area_um2": 884.0,
+            "length_px": 53.9,
+            "length_um": 53.91,
+            "width_px": 23.0,
+            "width_um": 23.04,
+            "aspect_ratio": 2.34,
+            "perimeter_px": 139.9,
+            "perimeter_um": 139.88,
+            "circularity": 0.568,
+            "centroid": [
+              1199,
+              1471
+            ]
+          }
+        },
+        {
+          "id": 16,
+          "box": [
+            1788,
+            2012,
+            1984,
+            2213
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.11,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9696,
+          "effnet_probabilities": {
+            "fiber": 0.9696,
+            "film": 0.0304,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.7808,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 22016,
+            "area_um2": 22016.5,
+            "length_px": 185.6,
+            "length_um": 185.61,
+            "width_px": 157.1,
+            "width_um": 157.14,
+            "aspect_ratio": 1.18,
+            "perimeter_px": 599.3,
+            "perimeter_um": 599.35,
+            "circularity": 0.77,
+            "centroid": [
+              1879,
+              2114
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "total": 16,
+        "counts": {
+          "fiber": 8,
+          "film": 8,
+          "fragment": 0
+        },
+        "per_class": {
+          "film": {
+            "count": 8,
+            "length": {
+              "mean": 96.238,
+              "median": 100.25,
+              "std": 25.808,
+              "min": 56.0,
+              "max": 131.2
+            },
+            "width": {
+              "mean": 46.538,
+              "median": 44.2,
+              "std": 16.672,
+              "min": 18.4,
+              "max": 76.3
+            },
+            "area": {
+              "mean": 3489.0,
+              "median": 2913.5,
+              "std": 2053.71,
+              "min": 805.0,
+              "max": 7463.0
+            },
+            "circularity": {
+              "mean": 0.615,
+              "median": 0.606,
+              "std": 0.11,
+              "min": 0.47,
+              "max": 0.777
+            },
+            "aspect_ratio": {
+              "mean": 2.246,
+              "median": 2.035,
+              "std": 0.706,
+              "min": 1.24,
+              "max": 3.41
+            },
+            "yolo_confidence": {
+              "mean": 0.261,
+              "median": 0.26,
+              "std": 0.044,
+              "min": 0.192,
+              "max": 0.354
+            },
+            "effnet_confidence": {
+              "mean": 0.999,
+              "median": 1.0,
+              "std": 0.002,
+              "min": 0.994,
+              "max": 1.0
+            }
+          },
+          "fiber": {
+            "count": 8,
+            "length": {
+              "mean": 119.262,
+              "median": 114.45,
+              "std": 50.281,
+              "min": 53.9,
+              "max": 205.0
+            },
+            "width": {
+              "mean": 88.8,
+              "median": 76.9,
+              "std": 47.952,
+              "min": 23.0,
+              "max": 170.5
+            },
+            "area": {
+              "mean": 9493.625,
+              "median": 6395.0,
+              "std": 8725.045,
+              "min": 884.0,
+              "max": 25941.0
+            },
+            "circularity": {
+              "mean": 0.618,
+              "median": 0.619,
+              "std": 0.111,
+              "min": 0.422,
+              "max": 0.77
+            },
+            "aspect_ratio": {
+              "mean": 1.489,
+              "median": 1.31,
+              "std": 0.389,
+              "min": 1.17,
+              "max": 2.34
+            },
+            "yolo_confidence": {
+              "mean": 0.225,
+              "median": 0.235,
+              "std": 0.06,
+              "min": 0.11,
+              "max": 0.31
+            },
+            "effnet_confidence": {
+              "mean": 0.996,
+              "median": 1.0,
+              "std": 0.01,
+              "min": 0.97,
+              "max": 1.0
+            }
+          }
+        },
+        "overall": {
+          "length": {
+            "mean": 107.75,
+            "median": 106.4,
+            "std": 41.589,
+            "min": 53.9,
+            "max": 205.0
+          },
+          "area": {
+            "mean": 6491.312,
+            "median": 3571.5,
+            "std": 7013.269,
+            "min": 805.0,
+            "max": 25941.0
+          },
+          "circularity": {
+            "mean": 0.617,
+            "median": 0.619,
+            "std": 0.11,
+            "min": 0.422,
+            "max": 0.777
+          },
+          "aspect_ratio": {
+            "mean": 1.867,
+            "median": 1.735,
+            "std": 0.684,
+            "min": 1.17,
+            "max": 3.41
+          }
+        },
+        "length_histogram": {
+          "unit": "px",
+          "counts": [
+            3,
+            2,
+            2,
+            3,
+            2,
+            2,
+            0,
+            0,
+            1,
+            1
+          ],
+          "bin_edges": [
+            53.9,
+            69.01,
+            84.12,
+            99.23,
+            114.34,
+            129.45,
+            144.56,
+            159.67,
+            174.78,
+            189.89,
+            205.0
+          ]
+        },
+        "unit": "px",
+        "pixel_to_micron": 1.0
+      }
+    }
+  ]
+}
