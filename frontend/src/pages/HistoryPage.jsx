@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { getJobs, getResult } from '../api/detect.js'
 import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, ClipboardList, Loader2, ArrowRight } from 'lucide-react'
 
 function timeAgo(ts) {
   const diff = Math.floor(Date.now() / 1000 - ts)
@@ -35,7 +36,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-        <span className="spinner" />
+        <Loader2 className="spinner text-primary" size={32} />
       </div>
     )
   }
@@ -43,7 +44,7 @@ export default function HistoryPage() {
   if (error) {
     return (
       <div className="empty-state">
-        <div className="icon">⚠️</div>
+        <div className="icon text-danger"><AlertTriangle size={48} strokeWidth={1.5} /></div>
         <p>Could not reach backend: <strong>{error}</strong></p>
         <p className="text-sm text-muted" style={{ marginTop: '0.5rem' }}>Make sure the FastAPI server is running on port 8000.</p>
       </div>
@@ -53,7 +54,7 @@ export default function HistoryPage() {
   if (jobs.length === 0) {
     return (
       <div className="empty-state" style={{ marginTop: '4rem' }}>
-        <div className="icon">📋</div>
+        <div className="icon text-muted"><ClipboardList size={48} strokeWidth={1.5} /></div>
         <h2 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>No past jobs</h2>
         <p className="text-muted text-sm">Past detection jobs will appear here (current session only).</p>
       </div>
@@ -90,8 +91,8 @@ export default function HistoryPage() {
                 <td className="text-muted text-sm">{j.created_at ? timeAgo(j.created_at) : '—'}</td>
                 <td>
                   {j.status === 'done' && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => loadJob(j.job_id)}>
-                      Load Results →
+                    <button className="btn btn-ghost btn-sm" onClick={() => loadJob(j.job_id)} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      Load Results <ArrowRight size={14} />
                     </button>
                   )}
                 </td>

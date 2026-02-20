@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { runDetection } from '../api/detect.js'
 import { useToast } from '../App.jsx'
 
@@ -18,12 +19,9 @@ const DEFAULTS = {
 
 function Toggle({ checked, onChange, label, description }) {
   return (
-    <label className="toggle-wrap" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
-      <span className="toggle-switch" style={{ marginTop: 2 }}>
-        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
-        <span className="toggle-track">
-          <span className="toggle-thumb" />
-        </span>
+    <label className="toggle-wrap" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+      <span className={`toggle-switch ${checked ? 'active' : ''}`} style={{ marginTop: 2 }}>
+        <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
       </span>
       <span>
         <div style={{ fontWeight: 500, fontSize: '0.875rem', color: 'var(--text)' }}>{label}</div>
@@ -78,11 +76,13 @@ function DropZone({ files, onChange }) {
           padding: '2.5rem',
           textAlign: 'center',
           cursor: 'pointer',
-          background: dragOver ? 'rgba(13,148,136,0.05)' : 'var(--surface2)',
+          background: dragOver ? 'rgba(14,165,233,0.05)' : 'var(--surface2)',
           transition: 'all .15s',
         }}
       >
-        <div style={{ fontSize: 36, marginBottom: '0.75rem', opacity: 0.6 }}>📂</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>
+          <UploadCloud size={36} strokeWidth={1.5} />
+        </div>
         <p style={{ fontWeight: 500, marginBottom: 4 }}>Drop images here or click to browse</p>
         <p className="text-sm text-muted">PNG, JPG, TIFF, BMP supported • Multiple files OK</p>
         <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFiles} />
@@ -97,12 +97,12 @@ function DropZone({ files, onChange }) {
               borderRadius: 'var(--radius-sm)', padding: '0.375rem 0.75rem',
               fontSize: '0.8125rem',
             }}>
-              <span>🖼️</span>
+              <FileImage size={14} className="text-muted" />
               <span className="truncate" style={{ maxWidth: 180 }}>{f.name}</span>
               <button
                 onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px' }}
-              >✕</button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px', display: 'flex', alignItems: 'center' }}
+              ><X size={14} /></button>
             </div>
           ))}
         </div>
@@ -167,7 +167,7 @@ export default function UploadPage() {
         {/* Drop zone */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>📤</span> Input Images
+            <ImageIcon size={18} className="text-primary" /> Input Images
           </div>
           <DropZone files={files} onChange={setFiles} />
         </div>
@@ -175,7 +175,7 @@ export default function UploadPage() {
         {/* Pipeline toggles */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>⚙️</span> Pipeline Modules
+            <Settings size={18} className="text-primary" /> Pipeline Modules
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <Toggle
@@ -206,7 +206,7 @@ export default function UploadPage() {
               Running pipeline…
             </>
           ) : (
-            <>▶ Run Detection Pipeline</>
+            <><Play size={18} fill="currentColor" /> Run Detection Pipeline</>
           )}
         </button>
       </div>
@@ -215,7 +215,7 @@ export default function UploadPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: 72 }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>🎛️</span> Parameters
+            <SlidersHorizontal size={18} className="text-primary" /> Parameters
           </div>
 
           <SliderField
@@ -269,9 +269,9 @@ export default function UploadPage() {
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => setAdvanced(a => !a)}
-            style={{ alignSelf: 'flex-start' }}
+            style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
           >
-            {advanced ? '▲' : '▼'} Advanced: Custom Models
+            {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Advanced: Custom Models
           </button>
 
           {advanced && (

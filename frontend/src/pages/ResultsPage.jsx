@@ -5,21 +5,25 @@ import {
   ScatterChart, Scatter, ZAxis,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts'
+import { ChevronDown, ChevronUp, Download, Image as ImageIcon, Layers, Maximize, BarChart2, Activity, FileText } from 'lucide-react'
 import { imageUrl, maskUrl, originalUrl } from '../api/detect.js'
 
-const CLASS_COLORS = { fiber: '#dc2626', film: '#d97706', fragment: '#059669' }
+const CLASS_COLORS = { fiber: '#ef4444', film: '#f59e0b', fragment: '#10b981' }
 const CLASS_ORDER   = ['fiber', 'film', 'fragment']
 
 /* ──────────────────────────────────────────── helpers ─── */
 function fmt(v, dp = 2) { return v == null ? '—' : Number(v).toFixed(dp) }
 function pct(n, total) { return total ? ((n / total) * 100).toFixed(1) + '%' : '—' }
 
-function StatTile({ label, value, sub, color }) {
+function StatTile({ label, value, sub, color, icon: Icon }) {
   return (
-    <div className="stat-tile">
-      <span className="stat-label">{label}</span>
-      <span className="stat-value" style={color ? { color } : {}}>{value}</span>
-      {sub && <span className="stat-sub">{sub}</span>}
+    <div className="stat-tile" style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+      {Icon && <div style={{ color: color || 'var(--primary)', background: 'var(--surface2)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}><Icon size={20} /></div>}
+      <div>
+        <span className="stat-label">{label}</span>
+        <span className="stat-value" style={color ? { color } : {}}>{value}</span>
+        {sub && <span className="stat-sub">{sub}</span>}
+      </div>
     </div>
   )
 }
@@ -28,13 +32,16 @@ function StatTile({ label, value, sub, color }) {
 const CHART_STYLE = { background: 'transparent', fontSize: 12 }
 const TIP_STYLE   = { background: '#ffffff', border: '1px solid #dce0e8', color: '#1a1e2c', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,.08)' }
 
-function SectionTitle({ children, toggle, onToggle }) {
+function SectionTitle({ children, toggle, onToggle, icon: Icon }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{children}</h2>
+      <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {Icon && <Icon size={18} className="text-primary" />}
+        {children}
+      </h2>
       {onToggle && (
-        <button className="btn btn-ghost btn-sm" onClick={onToggle}>
-          {toggle ? '▲ collapse' : '▼ expand'}
+        <button className="btn btn-ghost btn-sm" onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          {toggle ? <><ChevronUp size={14} /> collapse</> : <><ChevronDown size={14} /> expand</>}
         </button>
       )}
     </div>
@@ -90,7 +97,7 @@ function LengthHistogram({ histogram }) {
           <XAxis dataKey="range" tick={{ fill: '#64748b', fontSize: 10 }} interval={1} />
           <YAxis tick={{ fill: '#64748b', fontSize: 11 }} allowDecimals={false} />
           <Tooltip contentStyle={TIP_STYLE} />
-          <Bar dataKey="count" fill="#0d9488" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -394,8 +401,8 @@ function ImageViewer({ jobId, images }) {
         )}
         {/* Mode toggles */}
         <div className="pill-bar">
-          {[['vis', '🔬 Annotated'], ['mask', '🎭 Masks'], ['original', '📷 Original']].map(([k, lbl]) => (
-            <button key={k} className={`pill ${mode === k ? 'active' : ''}`} onClick={() => setMode(k)}>{lbl}</button>
+          {[['vis', <><ImageIcon size={14} /> Annotated</>], ['mask', <><Layers size={14} /> Masks</>], ['original', <><Maximize size={14} /> Original</>]].map(([k, lbl]) => (
+            <button key={k} className={`pill ${mode === k ? 'active' : ''}`} onClick={() => setMode(k)} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>{lbl}</button>
           ))}
         </div>
       </div>
@@ -450,7 +457,7 @@ export default function ResultsPage() {
   if (!result) {
     return (
       <div className="empty-state" style={{ marginTop: '4rem' }}>
-        <div className="icon">📊</div>
+        <div className="icon text-muted"><BarChart2 size={48} strokeWidth={1.5} /></div>
         <h2 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>No results yet</h2>
         <p className="text-muted">Run the detection pipeline on the <a href="/detect" style={{ color: 'var(--primary)' }}>Detect</a> page first.</p>
       </div>
@@ -532,18 +539,18 @@ export default function ResultsPage() {
             const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
             a.download = `mp_report_${job_id.slice(0, 8)}.json`; a.click()
-          }}>⬇ Export JSON</button>
+          }} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Download size={14} /> Export JSON</button>
         </div>
       </div>
 
       {/* ── 1: KPI overview tiles ── */}
       <section>
-        <SectionTitle toggle={activeSections.overview} onToggle={() => toggle('overview')}>
+        <SectionTitle toggle={activeSections.overview} onToggle={() => toggle('overview')} icon={Activity}>
           Overview
         </SectionTitle>
         {activeSections.overview && (
           <div className="grid-4" style={{ marginTop: 0 }}>
-            <StatTile label="Total Detections" value={totalN} sub={`${images.length} image(s)`} />
+            <StatTile label="Total Detections" value={totalN} sub={`${images.length} image(s)`} icon={BarChart2} />
             <StatTile label="Fiber" value={totalCounts.fiber} sub={pct(totalCounts.fiber, totalN)} color="var(--fiber)" />
             <StatTile label="Film" value={totalCounts.film} sub={pct(totalCounts.film, totalN)} color="var(--film)" />
             <StatTile label="Fragment" value={totalCounts.fragment} sub={pct(totalCounts.fragment, totalN)} color="var(--fragment)" />
@@ -557,7 +564,7 @@ export default function ResultsPage() {
 
       {/* ── 2: Charts row ── */}
       <section>
-        <SectionTitle toggle={activeSections.charts} onToggle={() => toggle('charts')}>
+        <SectionTitle toggle={activeSections.charts} onToggle={() => toggle('charts')} icon={BarChart2}>
           Distribution Charts
         </SectionTitle>
         {activeSections.charts && (
@@ -570,7 +577,7 @@ export default function ResultsPage() {
 
       {/* ── 3: Per-class bar charts ── */}
       <section>
-        <SectionTitle toggle={activeSections.perClassBars} onToggle={() => toggle('perClassBars')}>
+        <SectionTitle toggle={activeSections.perClassBars} onToggle={() => toggle('perClassBars')} icon={BarChart2}>
           Per-Class Size Comparison
         </SectionTitle>
         {activeSections.perClassBars && (
@@ -591,7 +598,7 @@ export default function ResultsPage() {
 
       {/* ── 4: Scatter & Radar ── */}
       <section>
-        <SectionTitle toggle={activeSections.scatter} onToggle={() => toggle('scatter')}>
+        <SectionTitle toggle={activeSections.scatter} onToggle={() => toggle('scatter')} icon={Activity}>
           Shape Analysis
         </SectionTitle>
         {activeSections.scatter && (
@@ -604,7 +611,7 @@ export default function ResultsPage() {
 
       {/* ── 5: Confidence distribution ── */}
       <section>
-        <SectionTitle toggle={activeSections.confidence} onToggle={() => toggle('confidence')}>
+        <SectionTitle toggle={activeSections.confidence} onToggle={() => toggle('confidence')} icon={BarChart2}>
           Confidence Analysis
         </SectionTitle>
         {activeSections.confidence && <ConfidenceBars detections={allDetections} />}
@@ -612,7 +619,7 @@ export default function ResultsPage() {
 
       {/* ── 6: Image viewer ── */}
       <section>
-        <SectionTitle toggle={activeSections.images} onToggle={() => toggle('images')}>
+        <SectionTitle toggle={activeSections.images} onToggle={() => toggle('images')} icon={ImageIcon}>
           Visualizations
         </SectionTitle>
         {activeSections.images && job_id && images.length > 0 && (
@@ -622,7 +629,7 @@ export default function ResultsPage() {
 
       {/* ── 7: Stats metric table ── */}
       <section>
-        <SectionTitle toggle={activeSections.metricTable} onToggle={() => toggle('metricTable')}>
+        <SectionTitle toggle={activeSections.metricTable} onToggle={() => toggle('metricTable')} icon={FileText}>
           Detailed Statistics Table
         </SectionTitle>
         {activeSections.metricTable && (
@@ -634,7 +641,7 @@ export default function ResultsPage() {
 
       {/* ── 8: Detection table ── */}
       <section>
-        <SectionTitle toggle={activeSections.table} onToggle={() => toggle('table')}>
+        <SectionTitle toggle={activeSections.table} onToggle={() => toggle('table')} icon={FileText}>
           All Detections
         </SectionTitle>
         {activeSections.table && allDetections.length > 0 && (

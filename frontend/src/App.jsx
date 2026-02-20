@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { UploadCloud, BarChart3, ClipboardList, Microscope } from 'lucide-react'
 import UploadPage from './pages/UploadPage.jsx'
 import ResultsPage from './pages/ResultsPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
@@ -20,9 +21,9 @@ function Layout({ children }) {
 }
 
 const NAV_TABS = [
-  { to: '/detect',  icon: '⬆', label: 'Detect' },
-  { to: '/results', icon: '📊', label: 'Results' },
-  { to: '/history', icon: '📋', label: 'History' },
+  { to: '/detect',  icon: <UploadCloud size={16} />, label: 'Detect' },
+  { to: '/results', icon: <BarChart3 size={16} />, label: 'Results' },
+  { to: '/history', icon: <ClipboardList size={16} />, label: 'History' },
 ]
 
 function Navbar() {
@@ -44,8 +45,10 @@ function Navbar() {
         <div style={{
           width: 30, height: 30, borderRadius: 'var(--radius-sm)',
           background: 'var(--primary)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontSize: 16, color: '#fff',
-        }}>🔬</div>
+          justifyContent: 'center', color: '#fff',
+        }}>
+          <Microscope size={18} />
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
           <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text)', letterSpacing: '-.01em' }}>
             MP Detect
@@ -76,7 +79,7 @@ function Navbar() {
               marginBottom: -1,
             })}
           >
-            <span style={{ fontSize: 14 }}>{icon}</span>
+            <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
             {label}
           </NavLink>
         ))}

@@ -7,35 +7,35 @@
 /* ── Design Tokens ─────────────────────────────────────── */
 :root {
   /* Surface palette — clinical light */
-  --bg:           #f0f2f5;
+  --bg:           #f8fafc;
   --surface:      #ffffff;
-  --surface2:     #f7f8fa;
-  --surface3:     #eef0f4;
-  --border:       #dce0e8;
-  --border-strong:#c4cad4;
+  --surface2:     #f1f5f9;
+  --surface3:     #e2e8f0;
+  --border:       #cbd5e1;
+  --border-strong:#94a3b8;
 
   /* Text hierarchy */
-  --text:         #1a1e2c;
-  --text-secondary:#4a5068;
-  --text-muted:   #7c839b;
+  --text:         #0f172a;
+  --text-secondary:#334155;
+  --text-muted:   #64748b;
 
   /* Primary – teal (scientific/medical) */
-  --primary:      #0d9488;
-  --primary-hover:#0f766e;
-  --primary-light:#ccfbf1;
-  --primary-bg:   rgba(13,148,136,.06);
+  --primary:      #0ea5e9;
+  --primary-hover:#0284c7;
+  --primary-light:#e0f2fe;
+  --primary-bg:   rgba(14,165,233,.06);
   --accent:       #6366f1;
 
   /* Microplastic class colours */
-  --fiber:    #dc2626;
-  --film:     #d97706;
-  --fragment: #059669;
+  --fiber:    #ef4444;
+  --film:     #f59e0b;
+  --fragment: #10b981;
 
   /* Semantic */
-  --success:  #16a34a;
-  --warning:  #d97706;
-  --danger:   #dc2626;
-  --info:     #2563eb;
+  --success:  #10b981;
+  --warning:  #f59e0b;
+  --danger:   #ef4444;
+  --info:     #3b82f6;
 
   /* Radii */
   --radius-xs:  4px;
@@ -93,7 +93,8 @@ code {
   transition: box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
 .card:hover {
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
 /* ── Buttons ───────────────────────────────────────────── */
@@ -116,7 +117,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: #fff;
   box-shadow: var(--shadow-sm);
 }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover); box-shadow: var(--shadow); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-sm); }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn-ghost {
@@ -129,14 +131,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border: 1px solid var(--border);
   color: var(--text-secondary);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
-.btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.btn-outline:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
 
 .btn-sm { padding: 0.3rem 0.625rem; font-size: 0.8125rem; border-radius: var(--radius-sm); }
 .btn-lg { padding: 0.625rem 1.5rem; font-size: 0.9375rem; }
 
 /* ── Toggle Switch ─────────────────────────────────────── */
 .toggle-switch {
+  display: inline-block;
   position: relative;
   width: 42px;
   height: 24px;
@@ -149,6 +154,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .toggle-switch.active {
   background: var(--primary);
+}
+.toggle-switch:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .toggle-switch::after {
   content: '';
@@ -185,7 +194,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+  box-shadow: 0 0 0 3px rgba(14,165,233,.12);
 }
 .input::placeholder { color: var(--text-muted); }
 
@@ -228,11 +237,12 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   gap: 0.25rem;
   box-shadow: var(--shadow-sm);
-  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease), transform .2s var(--ease);
 }
 .stat-tile:hover {
   border-color: var(--primary);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 .stat-label {
   font-size: 0.6875rem;
@@ -274,9 +284,9 @@ input[type="range"]::-moz-range-thumb {
   background: var(--surface3);
   color: var(--text-muted);
 }
-.badge-fiber    { background: rgba(220,38,38,.08);  color: var(--fiber); }
-.badge-film     { background: rgba(217,119,6,.08);  color: var(--film); }
-.badge-fragment { background: rgba(5,150,105,.08);   color: var(--fragment); }
+.badge-fiber    { background: rgba(239,68,68,.08);  color: var(--fiber); }
+.badge-film     { background: rgba(245,158,11,.08);  color: var(--film); }
+.badge-fragment { background: rgba(16,185,129,.08);   color: var(--fragment); }
 
 /* ── Pill Toggle Bar ───────────────────────────────────── */
 .pill-bar {
@@ -297,7 +307,7 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
   transition: all .15s var(--ease);
 }
-.pill:hover { color: var(--text); background: var(--surface); }
+.pill:hover { color: var(--text); background: var(--surface); box-shadow: var(--shadow-sm); }
 .pill.active {
   background: var(--surface);
   color: var(--primary);
@@ -308,12 +318,13 @@ input[type="range"]::-moz-range-thumb {
 /* ── Data Table ────────────────────────────────────────── */
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.8125rem;
 }
 .data-table th {
   text-align: left;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 0.75rem;
   font-weight: 600;
   font-size: 0.6875rem;
   text-transform: uppercase;
@@ -326,15 +337,30 @@ input[type="range"]::-moz-range-thumb {
   top: 0;
   z-index: 1;
 }
+.data-table th:first-child { border-top-left-radius: var(--radius-sm); }
+.data-table th:last-child { border-top-right-radius: var(--radius-sm); }
 .data-table td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 0.75rem;
   border-bottom: 1px solid var(--surface3);
   color: var(--text-secondary);
   vertical-align: middle;
+  background: var(--surface);
+  border-top: 1px solid transparent;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
 }
-.data-table tbody tr { transition: background .1s var(--ease); }
-.data-table tbody tr:hover { background: var(--primary-bg); }
+.data-table tbody tr { transition: transform .15s var(--ease), box-shadow .15s var(--ease); }
+.data-table tbody tr td { transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease); }
+.data-table tbody tr:first-child td:first-child { border-top-left-radius: var(--radius-sm); }
+.data-table tbody tr:first-child td:last-child { border-top-right-radius: var(--radius-sm); }
+.data-table tbody tr:first-child td { border-top: none; }
+.data-table tbody tr:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); z-index: 2; position: relative; }
+.data-table tbody tr:hover td { background: var(--surface); border-bottom-color: var(--border); border-top-color: var(--border); color: var(--text); }
+.data-table tbody tr:hover td:first-child { border-top-left-radius: var(--radius-sm); border-bottom-left-radius: var(--radius-sm); border-left-color: var(--border); }
+.data-table tbody tr:hover td:last-child { border-top-right-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); border-right-color: var(--border); }
 .data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius-sm); }
+.data-table tbody tr:last-child td:last-child { border-bottom-right-radius: var(--radius-sm); }
 
 /* ── Grid Layouts ──────────────────────────────────────── */
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
@@ -412,6 +438,7 @@ input[type="range"]::-moz-range-thumb {
 .text-sm    { font-size: 0.8125rem; }
 .text-muted { color: var(--text-muted); }
 .truncate   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-only    { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 
 /* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

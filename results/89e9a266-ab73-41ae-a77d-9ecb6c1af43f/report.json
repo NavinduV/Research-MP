@@ -1,0 +1,427 @@
+{
+  "job_id": "89e9a266-ab73-41ae-a77d-9ecb6c1af43f",
+  "created_at": 1771631805.1157837,
+  "config": {
+    "yolo_conf": 0.1,
+    "mask_threshold": 0.5,
+    "pixel_to_micron": 1.0,
+    "crop_padding": 30,
+    "nms_iou": 0.3,
+    "use_maskrcnn": true,
+    "use_effnet": true
+  },
+  "images": [
+    {
+      "filename": "s8.png",
+      "image_size": {
+        "width": 2943,
+        "height": 2755
+      },
+      "file_index": 0,
+      "detections": [
+        {
+          "id": 1,
+          "box": [
+            1155,
+            2004,
+            1251,
+            2104
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.289,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9189,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 4998,
+            "area_um2": 4998.0,
+            "length_px": 102.5,
+            "length_um": 102.49,
+            "width_px": 67.8,
+            "width_um": 67.75,
+            "aspect_ratio": 1.51,
+            "perimeter_px": 318.9,
+            "perimeter_um": 318.94,
+            "circularity": 0.617,
+            "centroid": [
+              1204,
+              2060
+            ]
+          }
+        },
+        {
+          "id": 2,
+          "box": [
+            800,
+            533,
+            1062,
+            788
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.2886,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9715,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 30483,
+            "area_um2": 30483.0,
+            "length_px": 231.5,
+            "length_um": 231.48,
+            "width_px": 187.4,
+            "width_um": 187.44,
+            "aspect_ratio": 1.23,
+            "perimeter_px": 907.4,
+            "perimeter_um": 907.39,
+            "circularity": 0.465,
+            "centroid": [
+              928,
+              670
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "box": [
+            744,
+            570,
+            827,
+            656
+          ],
+          "yolo_class": "film",
+          "yolo_confidence": 0.2766,
+          "final_class": "film",
+          "final_class_id": 1,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 0.0,
+            "film": 1.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.7922,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2459,
+            "area_um2": 2459.0,
+            "length_px": 64.8,
+            "length_um": 64.77,
+            "width_px": 49.7,
+            "width_um": 49.72,
+            "aspect_ratio": 1.3,
+            "perimeter_px": 199.3,
+            "perimeter_um": 199.34,
+            "circularity": 0.778,
+            "centroid": [
+              788,
+              617
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "box": [
+            468,
+            2058,
+            570,
+            2163
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.1364,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.9754,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 3744,
+            "area_um2": 3744.5,
+            "length_px": 84.1,
+            "length_um": 84.09,
+            "width_px": 61.5,
+            "width_um": 61.48,
+            "aspect_ratio": 1.37,
+            "perimeter_px": 276.7,
+            "perimeter_um": 276.69,
+            "circularity": 0.615,
+            "centroid": [
+              517,
+              2113
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "box": [
+            517,
+            624,
+            583,
+            744
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.116,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 0.9217,
+          "effnet_probabilities": {
+            "fiber": 0.9217,
+            "film": 0.0783,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.8588,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2097,
+            "area_um2": 2097.0,
+            "length_px": 94.2,
+            "length_um": 94.21,
+            "width_px": 31.5,
+            "width_um": 31.47,
+            "aspect_ratio": 2.99,
+            "perimeter_px": 238.5,
+            "perimeter_um": 238.51,
+            "circularity": 0.463,
+            "centroid": [
+              559,
+              688
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "box": [
+            1419,
+            1114,
+            1490,
+            1186
+          ],
+          "yolo_class": "fiber",
+          "yolo_confidence": 0.1033,
+          "final_class": "fiber",
+          "final_class_id": 0,
+          "classification_source": "effnet",
+          "effnet_confidence": 1.0,
+          "effnet_probabilities": {
+            "fiber": 1.0,
+            "film": 0.0,
+            "fragment": 0.0
+          },
+          "mask_confidence": 0.8339,
+          "segmentation_source": "maskrcnn",
+          "size": {
+            "area_px": 2991,
+            "area_um2": 2991.0,
+            "length_px": 77.8,
+            "length_um": 77.8,
+            "width_px": 61.8,
+            "width_um": 61.84,
+            "aspect_ratio": 1.26,
+            "perimeter_px": 362.4,
+            "perimeter_um": 362.39,
+            "circularity": 0.286,
+            "centroid": [
+              1446,
+              1160
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "total": 6,
+        "counts": {
+          "fiber": 4,
+          "film": 2,
+          "fragment": 0
+        },
+        "per_class": {
+          "film": {
+            "count": 2,
+            "length": {
+              "mean": 83.65,
+              "median": 83.65,
+              "std": 18.85,
+              "min": 64.8,
+              "max": 102.5
+            },
+            "width": {
+              "mean": 58.75,
+              "median": 58.75,
+              "std": 9.05,
+              "min": 49.7,
+              "max": 67.8
+            },
+            "area": {
+              "mean": 3728.5,
+              "median": 3728.5,
+              "std": 1269.5,
+              "min": 2459.0,
+              "max": 4998.0
+            },
+            "circularity": {
+              "mean": 0.698,
+              "median": 0.698,
+              "std": 0.081,
+              "min": 0.617,
+              "max": 0.778
+            },
+            "aspect_ratio": {
+              "mean": 1.405,
+              "median": 1.405,
+              "std": 0.105,
+              "min": 1.3,
+              "max": 1.51
+            },
+            "yolo_confidence": {
+              "mean": 0.283,
+              "median": 0.283,
+              "std": 0.006,
+              "min": 0.277,
+              "max": 0.289
+            },
+            "effnet_confidence": {
+              "mean": 1.0,
+              "median": 1.0,
+              "std": 0.0,
+              "min": 1.0,
+              "max": 1.0
+            }
+          },
+          "fiber": {
+            "count": 4,
+            "length": {
+              "mean": 121.9,
+              "median": 89.15,
+              "std": 63.547,
+              "min": 77.8,
+              "max": 231.5
+            },
+            "width": {
+              "mean": 85.55,
+              "median": 61.65,
+              "std": 60.078,
+              "min": 31.5,
+              "max": 187.4
+            },
+            "area": {
+              "mean": 9828.75,
+              "median": 3367.5,
+              "std": 11938.98,
+              "min": 2097.0,
+              "max": 30483.0
+            },
+            "circularity": {
+              "mean": 0.457,
+              "median": 0.464,
+              "std": 0.117,
+              "min": 0.286,
+              "max": 0.615
+            },
+            "aspect_ratio": {
+              "mean": 1.712,
+              "median": 1.315,
+              "std": 0.739,
+              "min": 1.23,
+              "max": 2.99
+            },
+            "yolo_confidence": {
+              "mean": 0.161,
+              "median": 0.126,
+              "std": 0.075,
+              "min": 0.103,
+              "max": 0.289
+            },
+            "effnet_confidence": {
+              "mean": 0.98,
+              "median": 1.0,
+              "std": 0.034,
+              "min": 0.922,
+              "max": 1.0
+            }
+          }
+        },
+        "overall": {
+          "length": {
+            "mean": 109.15,
+            "median": 89.15,
+            "std": 55.998,
+            "min": 64.8,
+            "max": 231.5
+          },
+          "area": {
+            "mean": 7795.333,
+            "median": 3367.5,
+            "std": 10189.845,
+            "min": 2097.0,
+            "max": 30483.0
+          },
+          "circularity": {
+            "mean": 0.537,
+            "median": 0.54,
+            "std": 0.155,
+            "min": 0.286,
+            "max": 0.778
+          },
+          "aspect_ratio": {
+            "mean": 1.61,
+            "median": 1.335,
+            "std": 0.624,
+            "min": 1.23,
+            "max": 2.99
+          }
+        },
+        "length_histogram": {
+          "unit": "px",
+          "counts": [
+            2,
+            2,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "bin_edges": [
+            64.8,
+            81.47,
+            98.14,
+            114.81,
+            131.48,
+            148.15,
+            164.82,
+            181.49,
+            198.16,
+            214.83,
+            231.5
+          ]
+        },
+        "unit": "px",
+        "pixel_to_micron": 1.0
+      }
+    }
+  ]
+}
