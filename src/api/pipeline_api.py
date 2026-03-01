@@ -51,6 +51,26 @@ def _np_safe(obj):
 # App setup
 # ---------------------------------------------------------------------------
 
+# Allow large microscopy image uploads (default max_part_size is 1 MB).
+# Monkey-patch Starlette's Request.form() to raise the per-part limit to 500 MB
+# so large microscopy images / batches are accepted.
+
+def _patch_multipart_limit():
+    from starlette.requests import Request
+    import functools
+
+    _orig = Request.form
+
+    @functools.wraps(_orig)
+    def _form_with_large_limit(self, *, max_files=1000, max_fields=1000,
+                                max_part_size=500 * 1024 * 1024):
+        return _orig(self, max_files=max_files, max_fields=max_fields,
+                     max_part_size=max_part_size)
+
+    Request.form = _form_with_large_limit
+
+_patch_multipart_limit()
+
 app = FastAPI(title="Microplastic Detection API", version="2.0")
 
 app.add_middleware(
@@ -91,7 +111,7 @@ def _get_models(
     """Load (or return cached) models."""
     import torch
     from ultralytics import YOLO
-    from src.pipeline_inference import load_maskrcnn, load_effnet  # noqa: E402
+    from src.pipeline.pipeline_inference import load_maskrcnn, load_effnet  # noqa: E402
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -146,7 +166,7 @@ def _default_model_path(name: str) -> str:
 
 def _build_summary(detections: list[dict], pixel_to_micron: float) -> dict:
     """Aggregate statistics from detection results."""
-    from src.pipeline_inference import EFFNET_CLASS_NAMES
+    from src.pipeline.pipeline_inference import EFFNET_CLASS_NAMES
 
     if not detections:
         return {
@@ -276,7 +296,7 @@ async def detect(
     Returns a JSON job report with detections, statistics, and image IDs
     that can be used to fetch result images via /api/image/{job_id}/{index}.
     """
-    from src.pipeline_inference import (
+    from src.pipeline.pipeline_inference import (
         EFFNET_CLASS_NAMES,
         get_effnet_transform,
         get_maskrcnn_transform,
@@ -289,7 +309,10 @@ async def detect(
         calculate_microplastic_size,
         _create_visualization,
         COLORS,
+        load_per_type_maskrcnn,
+        NUM_CLASSES_MASKRCNN,
     )
+    from src.pipeline.filter_mask import detect_filter_circle_from_array
     import torch
 
     yolo_path = yolo_path or _default_model_path("yolo")
@@ -309,13 +332,40 @@ async def detect(
 
         # ---- Load models ----
         from ultralytics import YOLO
-        from src.pipeline_inference import load_maskrcnn, load_effnet
+        from src.pipeline.pipeline_inference import load_maskrcnn, load_effnet
 
-        yolo_model = YOLO(yolo_path)
-        maskrcnn_model = load_maskrcnn(maskrcnn_path, device) if use_maskrcnn else None
-        effnet_model = load_effnet(effnet_path, device) if use_effnet else None
-        if use_effnet and effnet_model is None:
-            use_effnet = False
+        yolo_key = f"yolo:{yolo_path}"
+        if yolo_key not in _model_cache:
+            _model_cache[yolo_key] = YOLO(yolo_path)
+            print(f"[YOLO] Loaded from: {yolo_path}")
+        yolo_model = _model_cache[yolo_key]
+
+        # Load per-type Mask R-CNN models (preferred)
+        per_type_models: dict = {}
+        fallback_maskrcnn = None
+        if use_maskrcnn:
+            per_type_cache_key = "maskrcnn_per_type"
+            if per_type_cache_key not in _model_cache:
+                _model_cache[per_type_cache_key] = load_per_type_maskrcnn(device)
+            per_type_models = _model_cache[per_type_cache_key]
+
+            # Fallback for types without per-type model
+            missing = [t for t in EFFNET_CLASS_NAMES if t not in per_type_models]
+            if missing and maskrcnn_path and Path(maskrcnn_path).exists():
+                mk_key = f"maskrcnn:{maskrcnn_path}"
+                if mk_key not in _model_cache:
+                    _model_cache[mk_key] = load_maskrcnn(maskrcnn_path, device,
+                                                         num_classes=NUM_CLASSES_MASKRCNN)
+                fallback_maskrcnn = _model_cache[mk_key]
+
+        effnet_model = None
+        if use_effnet:
+            eff_key = f"effnet:{effnet_path}"
+            if eff_key not in _model_cache:
+                _model_cache[eff_key] = load_effnet(effnet_path, device)
+            effnet_model = _model_cache[eff_key]
+            if effnet_model is None:
+                use_effnet = False
 
         effnet_transform = get_effnet_transform() if use_effnet else None
         maskrcnn_transform = get_maskrcnn_transform() if use_maskrcnn else None
@@ -340,6 +390,17 @@ async def detect(
 
             h, w = image.shape[:2]
 
+            # Detect filter paper circle (multi-strategy)
+            filter_circle = None
+            full_coverage = False
+            try:
+                fc_center, fc_radius, _fc_mask, fc_method, full_coverage = \
+                    detect_filter_circle_from_array(image)
+                if not full_coverage:
+                    filter_circle = (fc_center, fc_radius)
+            except Exception:
+                filter_circle = None
+
             # Stage 1: YOLO
             detections_raw = run_yolo_detection(yolo_model, str(img_path), yolo_conf)
 
@@ -359,6 +420,16 @@ async def detect(
                     'confidence': float(bx[5]),
                     'class_name': EFFNET_CLASS_NAMES[cid],
                 })
+
+            # Stage 2b: Filter detections to filter-paper region only
+            if filter_circle is not None and not full_coverage:
+                fc_cx, fc_cy = filter_circle[0]
+                fc_r = filter_circle[1]
+                detections = [
+                    d for d in detections
+                    if np.sqrt(((d['box'][0]+d['box'][2])/2 - fc_cx)**2 +
+                               ((d['box'][1]+d['box'][3])/2 - fc_cy)**2) <= fc_r
+                ]
 
             # Stage 3 & 4: EfficientNet classify + Mask R-CNN mask
             mask_overlay = np.zeros((h, w, 3), dtype=np.uint8)
@@ -385,15 +456,22 @@ async def detect(
                     effnet_probs = None
                     classification_source = "yolo"
 
-                if use_maskrcnn and maskrcnn_model is not None:
-                    mask_crop, mask_conf = segment_crop(
-                        maskrcnn_model, crop, final_class_id, device,
-                        maskrcnn_transform, mask_threshold,
-                    )
-                    x1_pad, y1_pad, x2_pad, y2_pad = crop_box
-                    full_mask = np.zeros((h, w), dtype=np.uint8)
-                    full_mask[y1_pad:y2_pad, x1_pad:x2_pad] = mask_crop
-                    segmentation_source = "maskrcnn"
+                if use_maskrcnn:
+                    chosen_model = per_type_models.get(final_class_name, fallback_maskrcnn)
+                    if chosen_model is not None:
+                        mask_crop, mask_conf = segment_crop(
+                            chosen_model, crop, final_class_id, device,
+                            maskrcnn_transform, mask_threshold,
+                        )
+                        x1_pad, y1_pad, x2_pad, y2_pad = crop_box
+                        full_mask = np.zeros((h, w), dtype=np.uint8)
+                        full_mask[y1_pad:y2_pad, x1_pad:x2_pad] = mask_crop
+                        model_name = final_class_name if final_class_name in per_type_models else 'generic'
+                        segmentation_source = f"maskrcnn_{model_name}"
+                    else:
+                        full_mask = generate_ellipse_mask(box, image.shape)
+                        mask_conf = 0.5
+                        segmentation_source = "ellipse"
                 else:
                     full_mask = generate_ellipse_mask(box, image.shape)
                     mask_conf = 0.5
@@ -425,7 +503,8 @@ async def detect(
                 results_list.append(result_item)
 
             # Save visualization
-            vis = _create_visualization(image, results_list, mask_overlay, pixel_to_micron)
+            vis = _create_visualization(image, results_list, mask_overlay, pixel_to_micron,
+                                        filter_circle=filter_circle)
             vis_path = job_dir / f"vis_{file_idx}.jpg"
             cv2.imwrite(str(vis_path), vis, [cv2.IMWRITE_JPEG_QUALITY, 90])
 
@@ -441,6 +520,10 @@ async def detect(
             image_results.append({
                 "filename": upload.filename,
                 "image_size": {"width": w, "height": h},
+                "filter_circle": {
+                    "center": list(filter_circle[0]),
+                    "radius": int(filter_circle[1]),
+                } if filter_circle else None,
                 "file_index": file_idx,
                 "detections": results_list,
                 "summary": summary,
@@ -533,3 +616,257 @@ async def get_original(job_id: str, file_index: int):
 async def list_jobs():
     """List all jobs in memory."""
     return {"jobs": [{"job_id": k, **v} for k, v in _jobs.items()]}
+
+
+# ---------------------------------------------------------------------------
+# Stitching – in-memory session cache
+# ---------------------------------------------------------------------------
+
+_stitch_cache: dict[str, dict] = {}
+
+
+@app.post("/api/stitch/analyze")
+async def stitch_analyze(folder_path: str = Form(...)):
+    """Analyze a folder of images and return brightness groups for selection."""
+    from src.img_preprocess.macro_stitch_pipeline import group_images_by_brightness
+
+    folder = folder_path.strip()
+    if not Path(folder).is_dir():
+        raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
+
+    groups = group_images_by_brightness(folder)
+    if not groups:
+        raise HTTPException(status_code=404, detail="No images found in folder")
+
+    # Serialize brightness groups for the frontend
+    result = {}
+    for brightness_level, images in sorted(groups.items()):
+        key = str(int(brightness_level))
+        result[key] = [
+            {
+                "path": img["path"].replace("\\", "/"),
+                "filename": img["filename"],
+                "brightness": round(img["brightness"], 1),
+            }
+            for img in images
+        ]
+    return {"groups": result, "folder": folder}
+
+
+@app.get("/api/stitch/thumbnail")
+async def stitch_thumbnail(path: str):
+    """Serve a thumbnail preview of an image on disk."""
+    full = Path(path)
+    if not full.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    img = cv2.imread(str(full))
+    if img is None:
+        raise HTTPException(status_code=400, detail="Cannot decode image")
+    # Resize to thumbnail (max 240px)
+    h, w = img.shape[:2]
+    max_thumb = 240
+    if max(h, w) > max_thumb:
+        sc = max_thumb / max(h, w)
+        img = cv2.resize(img, (int(w * sc), int(h * sc)), interpolation=cv2.INTER_AREA)
+    _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/jpeg")
+
+
+@app.post("/api/stitch/run")
+async def stitch_run(
+    folder_path: str = Form(...),
+    selected_images: str = Form(...),
+    advanced_mode: bool = Form(False),
+    output_name: str = Form("stitched_output.png"),
+    max_dim: int = Form(8192),
+    upscale: float = Form(1.0),
+):
+    """Run the stitching pipeline on selected images."""
+    from src.img_preprocess.macro_stitch_pipeline import (
+        stitch_images,
+        stitch_images_advanced,
+        prepare_for_yolo,
+        upscale_image,
+    )
+
+    image_paths = [p.strip() for p in selected_images.split("|||") if p.strip()]
+    if len(image_paths) < 2:
+        raise HTTPException(status_code=400, detail="Select at least 2 images")
+
+    images = []
+    for p in image_paths:
+        img = cv2.imread(p)
+        if img is not None:
+            images.append(img)
+    if len(images) < 2:
+        raise HTTPException(status_code=400, detail=f"Could not read enough images ({len(images)} loaded)")
+
+    try:
+        if advanced_mode and len(images) >= 3:
+            pano = stitch_images_advanced(images, max_stitch_dim=10000)
+        else:
+            pano = stitch_images(images, max_stitch_dim=8192)
+
+        if upscale > 1.0:
+            pano = upscale_image(pano, scale=upscale)
+
+        # Save to datasets/stitched/
+        out_dir = BASE_DIR / "datasets" / "stitched"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = str(out_dir / output_name)
+        meta = prepare_for_yolo(pano, out_path, max_dim=max_dim)
+
+        session_id = str(uuid.uuid4())[:8]
+        abs_path = str(Path(out_path).resolve())
+        _stitch_cache[session_id] = {
+            "image_path": abs_path,
+            "meta": meta,
+            "num_images": len(images),
+            "advanced": advanced_mode and len(images) >= 3,
+        }
+
+        return {
+            "session_id": session_id,
+            "meta": _np_safe(meta),
+            "num_images": len(images),
+            "advanced": advanced_mode and len(images) >= 3,
+        }
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/stitch/preview/{session_id}")
+async def stitch_preview(session_id: str):
+    """Serve the stitched result image."""
+    if session_id not in _stitch_cache:
+        raise HTTPException(status_code=404, detail="Session expired")
+    img_path = _stitch_cache[session_id]["image_path"]
+    if not Path(img_path).exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+
+    img = cv2.imread(img_path)
+    if img is None:
+        raise HTTPException(status_code=500, detail="Cannot read image")
+
+    # Send a reasonably-sized preview (max 1600px)
+    h, w = img.shape[:2]
+    max_dim_preview = 1600
+    if max(h, w) > max_dim_preview:
+        sc = max_dim_preview / max(h, w)
+        img = cv2.resize(img, (int(w * sc), int(h * sc)), interpolation=cv2.INTER_AREA)
+
+    _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/jpeg")
+
+
+@app.post("/api/stitch/enhance/{session_id}")
+async def stitch_enhance(
+    session_id: str,
+    sharpen: float = Form(0),
+    denoise: int = Form(0),
+    contrast: float = Form(0),
+    brightness: int = Form(0),
+    auto_wb: bool = Form(False),
+):
+    """Apply enhancements to the stitched image and save."""
+    from src.img_preprocess.macro_stitch_pipeline import enhance_image
+
+    if session_id not in _stitch_cache:
+        raise HTTPException(status_code=404, detail="Session expired")
+
+    img_path = _stitch_cache[session_id]["image_path"]
+    img = cv2.imread(img_path)
+    if img is None:
+        raise HTTPException(status_code=500, detail="Cannot read image")
+
+    if sharpen > 0 or denoise > 0 or contrast > 0 or brightness != 0 or auto_wb:
+        img = enhance_image(
+            img, sharpen=sharpen, denoise=denoise,
+            contrast=contrast, brightness=brightness, auto_wb=auto_wb,
+        )
+        cv2.imwrite(img_path, img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+
+    return {"success": True, "path": img_path}
+
+
+@app.get("/api/stitch/enhance-preview/{session_id}")
+async def stitch_enhance_preview(
+    session_id: str,
+    sharpen: float = 0,
+    denoise: int = 0,
+    contrast: float = 0,
+    brightness: int = 0,
+    auto_wb: int = 0,
+):
+    """Return a live-preview JPEG with the requested enhancement settings."""
+    from src.img_preprocess.macro_stitch_pipeline import enhance_image
+
+    if session_id not in _stitch_cache:
+        raise HTTPException(status_code=404, detail="Session expired")
+
+    img_path = _stitch_cache[session_id]["image_path"]
+    img = cv2.imread(img_path)
+    if img is None:
+        raise HTTPException(status_code=500, detail="Cannot read image")
+
+    h, w = img.shape[:2]
+    max_prev = 1200
+    if max(h, w) > max_prev:
+        sc = max_prev / max(h, w)
+        img = cv2.resize(img, (int(w * sc), int(h * sc)), interpolation=cv2.INTER_AREA)
+
+    if sharpen > 0 or denoise > 0 or contrast > 0 or brightness != 0 or auto_wb:
+        img = enhance_image(
+            img, sharpen=sharpen, denoise=denoise,
+            contrast=contrast, brightness=brightness,
+            auto_wb=bool(auto_wb),
+        )
+
+    _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    return StreamingResponse(
+        io.BytesIO(buf.tobytes()), media_type="image/jpeg",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.post("/api/stitch/send-to-pipeline/{session_id}")
+async def stitch_send_to_pipeline(session_id: str):
+    """
+    Copy the stitched image into the uploads folder and return its path
+    so the frontend can pass it through the normal /api/detect endpoint.
+    Returns a blob URL-compatible file.
+    """
+    if session_id not in _stitch_cache:
+        raise HTTPException(status_code=404, detail="Session expired")
+    img_path = _stitch_cache[session_id]["image_path"]
+    if not Path(img_path).exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Read the full-res file and stream it back so the frontend can POST it to /api/detect
+    def _iter():
+        with open(img_path, "rb") as f:
+            yield from f
+
+    ext = Path(img_path).suffix.lower()
+    mt = "image/png" if ext == ".png" else "image/jpeg"
+    fname = Path(img_path).name
+    return StreamingResponse(
+        _iter(), media_type=mt,
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@app.delete("/api/stitch/{session_id}")
+async def stitch_delete(session_id: str):
+    """Delete stitched image and clear session."""
+    if session_id in _stitch_cache:
+        img_path = _stitch_cache[session_id]["image_path"]
+        try:
+            if Path(img_path).exists():
+                os.remove(img_path)
+        except Exception:
+            pass
+        del _stitch_cache[session_id]
+    return {"deleted": True}

@@ -1,0 +1,13 @@
+Raw macro photos → stitching.py / macro_stitch_pipeline.py → Stitched filter paper images
+    ↓
+Label Studio (manual annotation) → convert_labels.py → YOLO-format dataset
+    ↓
+augment_data.py → Augmented + balanced dataset → train_yolo.py → YOLOv8 weights
+    ↓
+extract_crops.py → Crop images → train_effnet.py → EfficientNet weights
+    ↓
+sam_auto_annotate.py / sam_annotate_per_type.py → SAM masks → train_maskrcnn_per_type.py → 3× Mask R-CNN weights
+    ↓
+pipeline_inference.py → YOLO detect → EfficientNet classify → Mask R-CNN segment → JSON report + annotated images
+    ↓
+pipeline_api.py (FastAPI) ←→ React Dashboard (upload → detect → results → history)

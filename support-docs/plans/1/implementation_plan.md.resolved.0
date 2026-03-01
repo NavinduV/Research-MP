@@ -204,7 +204,7 @@ For each image:
 
 #### Step 2.1: Setup YOLO Directory Structure
 ```powershell
-python src/train_yolo.py --mode setup
+python src/train/train_yolo.py --mode setup
 ```
 
 This creates:
@@ -223,7 +223,7 @@ data/yolo/
 
 #### Step 2.2: Convert to YOLO Format
 ```powershell
-python src/convert_labels.py `
+python src/data_preparation/convert_labels.py `
     --input data/labelstudio_export.json `
     --output data/yolo `
     --format yolo `
@@ -240,7 +240,7 @@ python src/convert_labels.py `
 
 #### Step 2.3: Convert to COCO Format (for Mask R-CNN)
 ```powershell
-python src/convert_labels.py `
+python src/data_preparation/convert_labels.py `
     --input data/labelstudio_export.json `
     --output data/annotations `
     --format coco `
@@ -249,7 +249,7 @@ python src/convert_labels.py `
 
 #### Step 2.4: Extract Patches (for EfficientNet)
 ```powershell
-python src/convert_labels.py `
+python src/data_preparation/convert_labels.py `
     --input data/labelstudio_export.json `
     --output data/patches `
     --format patches `
@@ -271,10 +271,10 @@ data/patches/
 #### Step 3.1: Start YOLO Training
 ```powershell
 # Basic training (fast, for testing)
-python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 50 --model-size n
+python src/train/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 50 --model-size n
 
 # Better accuracy (longer training)
-python src/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 100 --model-size s
+python src/train/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 100 --model-size s
 ```
 
 **Model sizes:**
@@ -293,12 +293,12 @@ Training creates results in `experiments/microplastic_yolo/`:
 
 #### Step 3.3: Validate YOLO
 ```powershell
-python src/train_yolo.py --mode val --data data/yolo/dataset.yaml
+python src/train/train_yolo.py --mode val --data data/yolo/dataset.yaml
 ```
 
 #### Step 3.4: Test YOLO Predictions
 ```powershell
-python src/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
+python src/train/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
 ```
 
 ---
@@ -310,13 +310,13 @@ python src/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
 
 #### Step 4.1: Train Mask R-CNN
 ```powershell
-python src/train_maskrcnn.py
+python src/train/train_maskrcnn.py
 ```
 
 Training saves model to `experiments/maskrcnn.pth`
 
 #### Step 4.2: Training Parameters
-Edit `src/train_maskrcnn.py` for:
+Edit `src/train/train_maskrcnn.py` for:
 - `epochs` (default: 10)
 - `batch_size` (default: 2, reduce if memory errors)
 - `learning_rate` (default: 1e-4)
@@ -330,7 +330,7 @@ Edit `src/train_maskrcnn.py` for:
 
 #### Step 5.1: Train EfficientNet
 ```powershell
-python src/train_effnet.py
+python src/train/train_effnet.py
 ```
 
 Training saves model to `experiments/efficientnet.pth`
@@ -342,19 +342,19 @@ Training saves model to `experiments/efficientnet.pth`
 #### Step 6.1: Test with Pretrained Models (Before Training)
 ```powershell
 # Test entire pipeline
-python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
+python src/pipeline/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
 
 # Test individual models
-python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model yolo
-python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model maskrcnn
-python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model effnet
+python src/pipeline/test_pipeline.py --image "dev-test/stitched/s7.png" --model yolo
+python src/pipeline/test_pipeline.py --image "dev-test/stitched/s7.png" --model maskrcnn
+python src/pipeline/test_pipeline.py --image "dev-test/stitched/s7.png" --model effnet
 ```
 
 #### Step 6.2: Test with Trained Models
 After training, you can run inference:
 ```powershell
 # YOLO prediction
-python src/train_yolo.py --mode predict --image "your_test_image.png"
+python src/train/train_yolo.py --mode predict --image "your_test_image.png"
 ```
 
 Results saved to `experiments/predictions/`
@@ -418,7 +418,7 @@ After training, you can generate:
 ### Automated Test
 ```powershell
 # Run pipeline test (validates all models load and run)
-python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
+python src/pipeline/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
 ```
 
 **Expected:** Models load successfully, creates output images in `experiments/pipeline_test/`
@@ -426,10 +426,10 @@ python src/test_pipeline.py --image "dev-test/stitched/s7.png" --model all
 ### Post-Training Validation
 ```powershell
 # Validate YOLO model
-python src/train_yolo.py --mode val --data data/yolo/dataset.yaml
+python src/train/train_yolo.py --mode val --data data/yolo/dataset.yaml
 
 # Predict on test image
-python src/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
+python src/train/train_yolo.py --mode predict --image "dev-test/stitched/s7.png"
 ```
 
 ---

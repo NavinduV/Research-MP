@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { UploadCloud, BarChart3, ClipboardList, Microscope } from 'lucide-react'
+import { UploadCloud, BarChart3, ClipboardList, Microscope, Layers } from 'lucide-react'
 import UploadPage from './pages/UploadPage.jsx'
 import ResultsPage from './pages/ResultsPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
+import StitchPage from './pages/StitchPage.jsx'
 import { ToastContainer } from './components/Toast.jsx'
 
 const ToastCtx = createContext(null)
@@ -22,6 +23,7 @@ function Layout({ children }) {
 
 const NAV_TABS = [
   { to: '/detect',  icon: <UploadCloud size={16} />, label: 'Detect' },
+  { to: '/stitch',  icon: <Layers size={16} />, label: 'Stitch' },
   { to: '/results', icon: <BarChart3 size={16} />, label: 'Results' },
   { to: '/history', icon: <ClipboardList size={16} />, label: 'History' },
 ]
@@ -109,6 +111,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/detect" replace />} />
             <Route path="/detect" element={<UploadPage />} />
+            <Route path="/stitch" element={<StitchPage />} />
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/history" element={<HistoryPage />} />
           </Routes>

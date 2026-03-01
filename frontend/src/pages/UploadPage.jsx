@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play } from 'lucide-react'
+import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info } from 'lucide-react'
 import { runDetection } from '../api/detect.js'
 import { useToast } from '../App.jsx'
 
@@ -31,18 +31,29 @@ function Toggle({ checked, onChange, label, description }) {
   )
 }
 
-function SliderField({ label, value, onChange, min, max, step, unit, helperText }) {
+function InfoTip({ tip }) {
+  return (
+    <span className="info-tip-wrap">
+      <Info size={14} className="info-tip-icon" />
+      <span className="info-tip-bubble">{tip}</span>
+    </span>
+  )
+}
+
+function SliderField({ label, value, onChange, min, max, step, unit, tip }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <label className="field-label" style={{ margin: 0 }}>{label}</label>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <label className="field-label" style={{ margin: 0 }}>{label}</label>
+          {tip && <InfoTip tip={tip} />}
+        </span>
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--primary)', minWidth: 48, textAlign: 'right' }}>
           {value}{unit}
         </span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))} />
-      {helperText && <span className="text-xs text-muted">{helperText}</span>}
     </div>
   )
 }
@@ -115,7 +126,7 @@ export default function UploadPage() {
   const [files, setFiles] = useState([])
   const [cfg, setCfg] = useState(DEFAULTS)
   const [loading, setLoading] = useState(false)
-  const [advanced, setAdvanced] = useState(false)
+  const [paramsOpen, setParamsOpen] = useState(true)
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -151,20 +162,20 @@ export default function UploadPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
-      {/* Left: Upload + Run */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {/* Header */}
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-            Microplastic Detection
-          </h1>
-          <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-            Upload microscopy images. The pipeline runs YOLO → EfficientNet classification → Mask&nbsp;R-CNN segmentation → size analysis.
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Header */}
+      <div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+          Microplastic Detection
+        </h1>
+        <p className="text-muted" style={{ fontSize: '0.875rem' }}>
+          Upload microscopy images. The pipeline runs YOLO → EfficientNet classification → Mask&nbsp;R-CNN segmentation → size analysis.
+        </p>
+      </div>
 
-        {/* Drop zone */}
+      {/* Top row: Input Images + Parameters side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+        {/* Input Images */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ImageIcon size={18} className="text-primary" /> Input Images
@@ -172,143 +183,111 @@ export default function UploadPage() {
           <DropZone files={files} onChange={setFiles} />
         </div>
 
-        {/* Pipeline toggles */}
-        <div className="card">
-          <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Settings size={18} className="text-primary" /> Pipeline Modules
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <Toggle
-              checked={cfg.use_effnet}
-              onChange={v => set('use_effnet', v)}
-              label="EfficientNet Classification"
-              description="Refines YOLO class predictions (fiber / film / fragment)"
-            />
-            <Toggle
-              checked={cfg.use_maskrcnn}
-              onChange={v => set('use_maskrcnn', v)}
-              label="Mask R-CNN Segmentation"
-              description="Precise pixel-level masks for size measurement. Falls back to ellipse if disabled."
-            />
-          </div>
-        </div>
-
-        {/* Run button */}
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={handleRun}
-          disabled={loading || files.length === 0}
-          style={{ width: '100%', justifyContent: 'center' }}
-        >
-          {loading ? (
-            <>
-              <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
-              Running pipeline…
-            </>
-          ) : (
-            <><Play size={18} fill="currentColor" /> Run Detection Pipeline</>
-          )}
-        </button>
-      </div>
-
-      {/* Right: Config */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: 72 }}>
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <SlidersHorizontal size={18} className="text-primary" /> Parameters
-          </div>
-
-          <SliderField
-            label="YOLO Confidence"
-            value={cfg.yolo_conf}
-            onChange={v => set('yolo_conf', v)}
-            min={0.01} max={0.95} step={0.01}
-            unit=""
-            helperText="Minimum detection confidence (lower = more detections)"
-          />
-
-          <SliderField
-            label="Mask Threshold"
-            value={cfg.mask_threshold}
-            onChange={v => set('mask_threshold', v)}
-            min={0.1} max={0.9} step={0.05}
-            unit=""
-            helperText="Mask binarisation threshold"
-          />
-
-          <SliderField
-            label="Pixel → Micron"
-            value={cfg.pixel_to_micron}
-            onChange={v => set('pixel_to_micron', v)}
-            min={0.1} max={10.0} step={0.1}
-            unit=" µm/px"
-            helperText="Calibrate with a stage micrometer"
-          />
-
-          <SliderField
-            label="Crop Padding"
-            value={cfg.crop_padding}
-            onChange={v => set('crop_padding', v)}
-            min={0} max={80} step={1}
-            unit=" px"
-            helperText="Padding around each YOLO detection box"
-          />
-
-          <SliderField
-            label="NMS IoU"
-            value={cfg.nms_iou}
-            onChange={v => set('nms_iou', v)}
-            min={0.05} max={0.9} step={0.05}
-            unit=""
-            helperText="IoU threshold for duplicate removal (lower = more aggressive)"
-          />
-        </div>
-
-        {/* Advanced: custom model paths */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Parameters — collapsible */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: paramsOpen ? '1.25rem' : 0 }}>
           <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => setAdvanced(a => !a)}
-            style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+            onClick={() => setParamsOpen(o => !o)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem',
+              color: 'var(--text)', fontSize: '0.875rem', width: '100%',
+            }}
           >
-            {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Advanced: Custom Models
+            <SlidersHorizontal size={18} className="text-primary" />
+            Parameters
+            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
+              {paramsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
           </button>
 
-          {advanced && (
+          {paramsOpen && (
             <>
-              {[
-                { key: 'yolo_path', label: 'YOLO weights (.pt)', ph: 'experiments/yolo/best.pt' },
-                { key: 'maskrcnn_path', label: 'Mask R-CNN checkpoint (.pth)', ph: 'experiments/maskrcnn/maskrcnn_crops_best.pth' },
-                { key: 'effnet_path', label: 'EfficientNet checkpoint (.pth)', ph: 'experiments/efficientnet/efficientnet_best.pth' },
-              ].map(({ key, label, ph }) => (
-                <div key={key}>
-                  <label className="field-label">{label}</label>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder={ph}
-                    value={cfg[key]}
-                    onChange={e => set(key, e.target.value)}
-                  />
-                </div>
-              ))}
+              <SliderField
+                label="YOLO Confidence"
+                value={cfg.yolo_conf}
+                onChange={v => set('yolo_conf', v)}
+                min={0.01} max={0.95} step={0.01}
+                unit=""
+                tip="Minimum score a detection must have to be kept. Lower values find more particles but may include false positives."
+              />
+
+              <SliderField
+                label="Mask Threshold"
+                value={cfg.mask_threshold}
+                onChange={v => set('mask_threshold', v)}
+                min={0.1} max={0.9} step={0.05}
+                unit=""
+                tip="Cutoff for converting the predicted mask probabilities into a binary shape. Higher values produce tighter, smaller masks."
+              />
+
+              <SliderField
+                label="Pixel → Micron"
+                value={cfg.pixel_to_micron}
+                onChange={v => set('pixel_to_micron', v)}
+                min={0.1} max={10.0} step={0.1}
+                unit=" µm/px"
+                tip="How many micrometres one pixel represents. Calibrate with a stage micrometer so reported sizes are in real-world units."
+              />
+
+              <SliderField
+                label="Crop Padding"
+                value={cfg.crop_padding}
+                onChange={v => set('crop_padding', v)}
+                min={0} max={80} step={1}
+                unit=" px"
+                tip="Extra pixels added around each detected bounding box before cropping. More padding gives the classifier extra context."
+              />
+
+              <SliderField
+                label="NMS IoU"
+                value={cfg.nms_iou}
+                onChange={v => set('nms_iou', v)}
+                min={0.05} max={0.9} step={0.05}
+                unit=""
+                tip="Overlap threshold for removing duplicate detections. Lower values merge more boxes (more aggressive deduplication)."
+              />
             </>
           )}
         </div>
+      </div>
 
-        {/* Quick tips */}
-        <div className="card" style={{ background: 'rgba(13,148,136,0.04)', borderColor: 'rgba(13,148,136,0.18)' }}>
-          <div style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.8125rem', color: 'var(--primary)' }}>
-            💡 Tips
-          </div>
-          <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-            <li>Lower YOLO confidence to catch faint particles</li>
-            <li>Set pixel-to-micron ratio for real-world sizes</li>
-            <li>Disable Mask R-CNN for faster processing</li>
-            <li>Multiple images are processed as a batch</li>
-          </ul>
+      {/* Pipeline toggles */}
+      <div className="card">
+        <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Settings size={18} className="text-primary" /> Pipeline Modules
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <Toggle
+            checked={cfg.use_effnet}
+            onChange={v => set('use_effnet', v)}
+            label="EfficientNet Classification"
+            description="Refines YOLO class predictions (fiber / film / fragment)"
+          />
+          <Toggle
+            checked={cfg.use_maskrcnn}
+            onChange={v => set('use_maskrcnn', v)}
+            label="Mask R-CNN Segmentation"
+            description="Precise pixel-level masks for size measurement. Falls back to ellipse if disabled."
+          />
         </div>
       </div>
+
+      {/* Run button */}
+      <button
+        className="btn btn-primary btn-lg"
+        onClick={handleRun}
+        disabled={loading || files.length === 0}
+        style={{ width: '100%', justifyContent: 'center' }}
+      >
+        {loading ? (
+          <>
+            <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+            Running pipeline…
+          </>
+        ) : (
+          <><Play size={18} fill="currentColor" /> Run Detection Pipeline</>
+        )}
+      </button>
     </div>
   )
 }
