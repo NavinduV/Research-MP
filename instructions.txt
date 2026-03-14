@@ -195,7 +195,6 @@ venv\Scripts\python.exe src/data_preparation/cellpose_auto_annotate.py --mode an
 
 
 
-
 #Running the full pipeline
 python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/yolo/best.pt --maskrcnn experiments/maskrcnn/maskrcnn_crops_best.pth --effnet experiments/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
 
@@ -222,6 +221,9 @@ cd D:\Research_Dev\mp-detect
 pip install label-studio-sdk
 python src/data_preparation/setup_labelstudio.py --url http://localhost:8080 --api-key <YOUR_TOKEN>
 
+#Access Token for Label Studio
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA4MDAwNjU1NCwiaWF0IjoxNzcyODA2NTU0LCJqdGkiOiJiOTMyMTYxOGI1M2E0ZjA2OWZhMmYzNmQ5MWIxMjVlNCIsInVzZXJfaWQiOiIxIn0.mNVLK6BXfZiA_7oNNO9OCK7RRIdzSqY2QCL3ojsQMt0
+
 
 
 #Manual export labelme mp crop types for maskrcnn
@@ -233,3 +235,24 @@ python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --y
 
 #Run pipeline with custom model directory
 python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments --yolo experiments/yolo/best.pt
+
+
+
+
+
+###Splitting datasets of mask-r-cnn mp types
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_fiber_sam" --output "data/macro/crops_fiber_sam_split"
+
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_fragment_sam" --output "data/macro/crops_fragment_sam_split"
+
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_film_sam" --output "data/macro/crops_film_sam_split"
+
+
+
+
+###Micro Data Preprocessing
+###Split the dataset and transforming to single class for yolo
+python src/data_preparation/convert_yolo_single_class_micro.py --input data/micro/yolo --output data/micro/yolo_single --split-ratio 0.8
+
+###Augmenting the splitted dataset for yolo
+python src/data_preparation/augment_data_micro.py --input data/micro/yolo_single --output data/micro/yolo_single_aug --target-train 800 --target-val 200
