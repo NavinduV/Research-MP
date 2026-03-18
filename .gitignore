@@ -72,6 +72,10 @@ logs/
 /models/
 /outputs/
 
+
+/uploads/
+/results/
+
 # Misc
 *.pyc
 *.pyo
