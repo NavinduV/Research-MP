@@ -143,16 +143,20 @@ def _get_models(
 def _default_model_path(name: str) -> str:
     candidates = {
         "yolo": [
+            "experiments/macro/yolo/best.pt",
+            "experiments/macro/microplastic_yolo/weights/best.pt",
             "experiments/yolo/best.pt",
             "experiments/microplastic_yolo/weights/best.pt",
             "experiments/microplastic_yolo_max_accuracy/weights/best.pt",
             "experiments/yolo/weights/best.pt",
         ],
         "maskrcnn": [
+            "experiments/macro/maskrcnn/maskrcnn_crops_best.pth",
             "experiments/maskrcnn/maskrcnn_crops_best.pth",
             "experiments/maskrcnn_crops_best.pth",
         ],
         "effnet": [
+            "experiments/macro/efficientnet/efficientnet_best.pth",
             "experiments/efficientnet/efficientnet_best.pth",
             "experiments/efficientnet_best.pth",
         ],

@@ -4,7 +4,7 @@ python -m venv env
 installing packages:
 pip install -r requirements.txt
 
-Server start (Dashboard API):
+###Server start (Dashboard API):
 python -m uvicorn src.api.pipeline_api:app --reload --host 127.0.0.1 --port 8000
 
 #running the full pipeline
@@ -195,8 +195,19 @@ venv\Scripts\python.exe src/data_preparation/cellpose_auto_annotate.py --mode an
 
 
 
-#Running the full pipeline
-python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/yolo/best.pt --maskrcnn experiments/maskrcnn/maskrcnn_crops_best.pth --effnet experiments/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
+#Running the full pipeline (per-type Mask R-CNN models)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3  --output "predictions/pipeline_batch_01"
+
+#Optional fallback single Mask R-CNN (used only if one of the 3 type models is missing)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments/macro --maskrcnn experiments/macro/maskrcnn/maskrcnn_crops_best.pth --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
+
+#Run full pipeline on a FOLDER of input images (saves each image output)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --output "results/pipeline_batch_01" --yolo-conf 0.1 --nms-iou 0.3
+
+#Run full pipeline on a FOLDER and auto-create a NEW timestamped output folder (PowerShell)
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$out = "results/pipeline_batch_$ts"
+python src/pipeline/pipeline_inference.py --image "datasets/stitched" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --output "$out" --yolo-conf 0.1 --nms-iou 0.3
 
 
 
@@ -231,10 +242,10 @@ python src/data_preparation/export_labelstudio.py --email researchmicroplastic@g
 
 
 #Run pipeline with per-type Mask R-CNN routing (auto-discovers models)
-python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/yolo/best.pt --effnet experiments/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
 
 #Run pipeline with custom model directory
-python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments --yolo experiments/yolo/best.pt
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt
 
 
 
@@ -256,3 +267,10 @@ python src/data_preparation/convert_yolo_single_class_micro.py --input data/micr
 
 ###Augmenting the splitted dataset for yolo
 python src/data_preparation/augment_data_micro.py --input data/micro/yolo_single --output data/micro/yolo_single_aug --target-train 800 --target-val 200
+
+
+###MAking Crops from yolo dataset
+python src\data_preparation\extract_crops_micro.py --yolo-dir "data\micro\yolo" --output "data\micro\crops"
+
+###Augmenting the created crops for efficientnet training
+python src\data_preparation\augment_crops_micro.py --input "data\micro\crops" --output "data\micro\crops_augmented"

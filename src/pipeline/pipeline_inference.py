@@ -69,11 +69,20 @@ EFFNET_CLASS_NAMES = ['fiber', 'film', 'fragment']
 YOLO_TO_MASKRCNN_CLASS = {0: 1, 1: 2, 2: 3}  # fiber=0->1, film=1->2, fragment=2->3
 MASKRCNN_TO_CLASS_NAME = {1: 'fiber', 2: 'film', 3: 'fragment'}
 
-# Default per-type model paths
-PER_TYPE_MODEL_PATHS = {
-    'fiber':    'experiments/maskrcnn_fiber/maskrcnn_fiber_best.pth',
-    'film':     'experiments/maskrcnn_film/maskrcnn_film_best.pth',
-    'fragment': 'experiments/maskrcnn_fragment/maskrcnn_fragment_best.pth',
+# Default per-type model path candidates (new macro layout first, legacy layout second)
+PER_TYPE_MODEL_CANDIDATES = {
+    'fiber': [
+        'experiments/macro/maskrcnn_fiber/maskrcnn_fiber_best.pth',
+        'experiments/maskrcnn_fiber/maskrcnn_fiber_best.pth',
+    ],
+    'film': [
+        'experiments/macro/maskrcnn_film/maskrcnn_film_best.pth',
+        'experiments/maskrcnn_film/maskrcnn_film_best.pth',
+    ],
+    'fragment': [
+        'experiments/macro/maskrcnn_fragment/maskrcnn_fragment_best.pth',
+        'experiments/maskrcnn_fragment/maskrcnn_fragment_best.pth',
+    ],
 }
 
 # Colors for visualization (BGR format for OpenCV)
@@ -184,7 +193,15 @@ def load_per_type_maskrcnn(device: torch.device,
                 # Also try maskrcnn_{type}/maskrcnn_best.pth
                 path = Path(maskrcnn_dir) / f'maskrcnn_{mp_type}' / 'maskrcnn_best.pth'
         else:
-            path = Path(PER_TYPE_MODEL_PATHS[mp_type])
+            path = None
+            for candidate in PER_TYPE_MODEL_CANDIDATES[mp_type]:
+                candidate_path = Path(candidate)
+                if candidate_path.exists():
+                    path = candidate_path
+                    break
+            if path is None:
+                # Keep a deterministic path in logs when none of the candidates exist.
+                path = Path(PER_TYPE_MODEL_CANDIDATES[mp_type][0])
 
         if path.exists():
             models[mp_type] = load_maskrcnn(str(path), device, num_classes=NUM_CLASSES_BINARY)
@@ -195,15 +212,28 @@ def load_per_type_maskrcnn(device: torch.device,
 
 
 def load_effnet(model_path: str, device: torch.device):
-    """Load trained EfficientNet-B0 classifier."""
-    model = timm.create_model('efficientnet_b0', pretrained=False, num_classes=NUM_CLASSES_EFFNET)
+    """Load trained EfficientNet classifier."""
+    try:
+        model = timm.create_model('efficientnet_b3', pretrained=False, num_classes=NUM_CLASSES_EFFNET)
+        if Path(model_path).exists():
+            checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            print(f"[EfficientNet] WARNING: Not found at {model_path}")
+            return None
+    except Exception as e:
+        # Fallback to B0 if B3 fails
+        model = timm.create_model('efficientnet_b0', pretrained=False, num_classes=NUM_CLASSES_EFFNET)
+        if Path(model_path).exists():
+            checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            print(f"[EfficientNet] WARNING: Not found at {model_path}")
+            return None
+
     if Path(model_path).exists():
-        checkpoint = torch.load(model_path, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
         print(f"[EfficientNet] Loaded from: {model_path}")
-    else:
-        print(f"[EfficientNet] WARNING: Not found at {model_path}")
-        return None
+    
     model.to(device)
     model.eval()
     return model
@@ -806,8 +836,13 @@ def run_pipeline(
         'models': {
             'yolo': str(yolo_model_path),
             'effnet': str(effnet_model_path) if use_effnet else None,
-            'maskrcnn_per_type': {t: str(PER_TYPE_MODEL_PATHS[t])
-                                  for t in per_type_models} if per_type_models else None,
+            'maskrcnn_per_type': {
+                t: str(next(
+                    (Path(c) for c in PER_TYPE_MODEL_CANDIDATES[t] if Path(c).exists()),
+                    Path(PER_TYPE_MODEL_CANDIDATES[t][0]),
+                ))
+                for t in per_type_models
+            } if per_type_models else None,
             'maskrcnn_fallback': str(maskrcnn_model_path) if fallback_maskrcnn else None,
         },
         'total_detections': len(results),
