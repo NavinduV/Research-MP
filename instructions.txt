@@ -283,6 +283,10 @@ label-studio start --port 8080
 pip install label-studio-sdk
 python src/data_preparation/setup_labelstudio.py --url http://localhost:8080 --api-key <YOUR_TOKEN>
 
+###Create projects-only:
+pip install label-studio-sdk
+python src/data_preparation/setup_labelstudio.py --projects-only --url http://localhost:8080 --api-key <YOUR_TOKEN>
+
 #Access Token for Label Studio (Mine)
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA4MDAwNjU1NCwiaWF0IjoxNzcyODA2NTU0LCJqdGkiOiJiOTMyMTYxOGI1M2E0ZjA2OWZhMmYzNmQ5MWIxMjVlNCIsInVzZXJfaWQiOiIxIn0.mNVLK6BXfZiA_7oNNO9OCK7RRIdzSqY2QCL3ojsQMt0
 
