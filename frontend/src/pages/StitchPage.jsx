@@ -7,10 +7,11 @@ import {
 } from 'lucide-react'
 import {
   analyzeFolder, thumbnailUrl, runStitch, stitchPreviewUrl,
-  enhancePreviewUrl, saveEnhancement, fetchStitchedFile, deleteStitch
+  enhancePreviewUrl, saveEnhancement, fetchStitchedFile, deleteStitch,
+  uploadAndAnalyzeForStitch,
 } from '../api/stitch.js'
 import { runDetection } from '../api/detect.js'
-import { useToast } from '../App.jsx'
+import { useToast, useStitchFiles } from '../App.jsx'
 
 /* ── tiny helpers ────────────────────────────────── */
 const STEPS = ['folder', 'select', 'result', 'enhance']
@@ -366,6 +367,30 @@ export default function StitchPage() {
 
   const toast = useToast()
   const navigate = useNavigate()
+  const stitchCtx = useStitchFiles()
+
+  /* ── Auto-process files passed from Detect page ── */
+  useEffect(() => {
+    if (!stitchCtx.files || stitchCtx.files.length < 2) return
+    const filesToUpload = stitchCtx.files
+    stitchCtx.clear() // consume so it doesn't re-trigger
+    const process = async () => {
+      setLoading(true)
+      toast(`Uploading ${filesToUpload.length} images for stitching…`, 'info')
+      try {
+        const data = await uploadAndAnalyzeForStitch(filesToUpload)
+        setFolder(data.folder)
+        setGroups(data.groups)
+        const allPaths = Object.values(data.groups).flat().map(img => img.path)
+        setSelected(allPaths)
+        setStep('select')
+        toast(`${data.uploaded_count} images uploaded and analyzed.`, 'success')
+      } catch (err) {
+        toast(err.message, 'error')
+      } finally { setLoading(false) }
+    }
+    process()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Analyze folder */
   const handleAnalyze = async () => {

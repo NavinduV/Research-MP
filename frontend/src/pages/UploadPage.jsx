@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info } from 'lucide-react'
-import { runDetection } from '../api/detect.js'
-import { useToast, usePipelineMode } from '../App.jsx'
+import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info, ChevronLeft, ChevronRight, Layers } from 'lucide-react'
+import { useToast, usePipelineMode, usePipelineJob, useStitchFiles, useUploadFiles } from '../App.jsx'
 
 const DEFAULTS = {
   yolo_conf: 0.1,
@@ -48,7 +47,11 @@ function SliderField({ label, value, onChange, min, max, step, unit, tip }) {
           <label className="field-label" style={{ margin: 0 }}>{label}</label>
           {tip && <InfoTip tip={tip} />}
         </span>
-        <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text)', minWidth: 48, textAlign: 'right', fontFamily: "'JetBrains Mono','Fira Code','Consolas',monospace", fontSize: '0.75rem' }}>
+        <span style={{
+          fontWeight: 700, color: 'var(--text)', minWidth: 48, textAlign: 'right',
+          fontFamily: "'JetBrains Mono','Fira Code','Consolas',monospace",
+          fontSize: '0.75rem',
+        }}>
           {value}{unit}
         </span>
       </div>
@@ -58,9 +61,117 @@ function SliderField({ label, value, onChange, min, max, step, unit, tip }) {
   )
 }
 
-function DropZone({ files, onChange }) {
+/* ── Image Preview Carousel ──────────────────────── */
+function ImagePreviewCarousel({ files, onRemove }) {
+  const [scrollIdx, setScrollIdx] = useState(0)
+  const VISIBLE = 3
+
+  if (files.length === 0) return null
+
+  const canLeft = scrollIdx > 0
+  const canRight = scrollIdx + VISIBLE < files.length
+  const visibleFiles = files.slice(scrollIdx, scrollIdx + VISIBLE)
+
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* Left arrow */}
+        {files.length > VISIBLE && (
+          <button
+            onClick={() => setScrollIdx(i => Math.max(0, i - 1))}
+            disabled={!canLeft}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: canLeft ? 'var(--surface)' : 'var(--surface2)',
+              color: canLeft ? 'var(--text)' : 'var(--text-muted)',
+              cursor: canLeft ? 'pointer' : 'default',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: canLeft ? 1 : 0.3, flexShrink: 0,
+            }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+        )}
+
+        {/* Image previews */}
+        <div style={{ display: 'flex', gap: '0.5rem', flex: 1, overflow: 'hidden' }}>
+          {visibleFiles.map((f, vi) => {
+            const realIdx = scrollIdx + vi
+            const url = URL.createObjectURL(f)
+            return (
+              <div key={realIdx} style={{
+                flex: '1 1 0', minWidth: 0, position: 'relative',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                overflow: 'hidden', background: 'var(--surface2)',
+              }}>
+                <img
+                  src={url}
+                  alt={f.name}
+                  style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
+                  onLoad={() => URL.revokeObjectURL(url)}
+                />
+                <div style={{
+                  padding: '0.375rem 0.5rem', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: '0.25rem',
+                }}>
+                  <span className="truncate" style={{ fontSize: '0.6875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    {f.name}
+                  </span>
+                  <button
+                    onClick={() => onRemove(realIdx)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '2px', display: 'flex',
+                      alignItems: 'center', flexShrink: 0,
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Right arrow */}
+        {files.length > VISIBLE && (
+          <button
+            onClick={() => setScrollIdx(i => Math.min(files.length - VISIBLE, i + 1))}
+            disabled={!canRight}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: canRight ? 'var(--surface)' : 'var(--surface2)',
+              color: canRight ? 'var(--text)' : 'var(--text-muted)',
+              cursor: canRight ? 'pointer' : 'default',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: canRight ? 1 : 0.3, flexShrink: 0,
+            }}
+          >
+            <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Pagination indicator */}
+      {files.length > VISIBLE && (
+        <div style={{ textAlign: 'center', marginTop: '0.375rem' }}>
+          <span className="text-xs text-muted">
+            Showing {scrollIdx + 1}–{Math.min(scrollIdx + VISIBLE, files.length)} of {files.length}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DropZone({ files, onChange, addBtnRef }) {
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef()
+
+  // Expose the file picker trigger so the parent "Add More" button can use it
+  React.useImperativeHandle(addBtnRef, () => ({
+    openPicker: () => inputRef.current?.click(),
+  }))
 
   const handleDrop = useCallback(e => {
     e.preventDefault()
@@ -74,93 +185,87 @@ function DropZone({ files, onChange }) {
     onChange(prev => [...prev, ...selected])
   }
 
-  return (
-    <div>
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        style={{
-          border: `2px dashed ${dragOver ? 'var(--text-secondary)' : 'var(--border)'}`,
-          borderRadius: 'var(--radius)',
-          padding: '2.5rem',
-          textAlign: 'center',
-          cursor: 'pointer',
-          background: dragOver ? 'var(--surface2)' : 'var(--surface2)',
-          transition: 'all .15s',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>
-          <UploadCloud size={32} strokeWidth={1.5} />
-        </div>
-        <p style={{ fontWeight: 500, marginBottom: 4, fontSize: '0.875rem' }}>Drop images here or click to browse</p>
-        <p className="text-xs text-muted">PNG, JPG, TIFF, BMP supported · Multiple files OK</p>
-        <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFiles} />
-      </div>
+  const removeFile = (idx) => {
+    onChange(prev => prev.filter((_, j) => j !== idx))
+  }
 
-      {files.length > 0 && (
-        <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-          {files.map((f, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '0.375rem',
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.625rem',
-              fontSize: '0.75rem',
-            }}>
-              <FileImage size={12} style={{ color: 'var(--text-muted)' }} />
-              <span className="truncate" style={{ maxWidth: 160 }}>{f.name}</span>
-              <button
-                onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: '0 2px', display: 'flex', alignItems: 'center' }}
-              ><X size={12} /></button>
-            </div>
-          ))}
+  const hasFiles = files.length > 0
+
+  return (
+    <div
+      onDragOver={hasFiles ? (e => { e.preventDefault(); setDragOver(true) }) : undefined}
+      onDragLeave={hasFiles ? (() => setDragOver(false)) : undefined}
+      onDrop={hasFiles ? handleDrop : undefined}
+      style={hasFiles && dragOver ? { outline: '2px dashed var(--text-secondary)', borderRadius: 'var(--radius)', outlineOffset: -2 } : {}}
+    >
+      {/* Hidden file input — always present */}
+      <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFiles} />
+
+      {/* Show full drop zone only when no files added yet */}
+      {!hasFiles && (
+        <div
+          onClick={() => inputRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          style={{
+            border: `2px dashed ${dragOver ? 'var(--text-secondary)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius)',
+            padding: '2.5rem',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: 'var(--surface2)',
+            transition: 'all .15s',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
+            <UploadCloud size={28} strokeWidth={1.5} />
+          </div>
+          <p style={{ fontWeight: 500, marginBottom: 4, fontSize: '0.8125rem' }}>Drop images here or click to browse</p>
+          <p className="text-xs text-muted">PNG, JPG, TIFF, BMP supported · Multiple files OK</p>
         </div>
       )}
+
+      {/* Image preview carousel — shown when files exist */}
+      {hasFiles && <ImagePreviewCarousel files={files} onRemove={removeFile} />}
     </div>
   )
 }
 
 export default function UploadPage() {
-  const [files, setFiles] = useState([])
+  const { files, setFiles } = useUploadFiles()
   const [cfg, setCfg] = useState(DEFAULTS)
-  const [loading, setLoading] = useState(false)
   const [paramsOpen, setParamsOpen] = useState(true)
-  const navigate = useNavigate()
   const toast = useToast()
   const { mode: pipelineMode } = usePipelineMode()
+  const { running, startPipeline } = usePipelineJob()
+  const stitchCtx = useStitchFiles()
+  const navigate = useNavigate()
+  const dropZoneRef = useRef()
 
   const set = (key, val) => setCfg(c => ({ ...c, [key]: val }))
 
   const handleRun = async () => {
     if (files.length === 0) { toast('Please select at least one image.', 'error'); return }
-    setLoading(true)
-    try {
-      const fd = new FormData()
-      files.forEach(f => fd.append('files', f))
-      fd.append('yolo_conf',       cfg.yolo_conf)
-      fd.append('mask_threshold',  cfg.mask_threshold)
-      fd.append('pixel_to_micron', cfg.pixel_to_micron)
-      fd.append('crop_padding',    cfg.crop_padding)
-      fd.append('nms_iou',         cfg.nms_iou)
-      fd.append('use_maskrcnn',    cfg.use_maskrcnn)
-      fd.append('use_effnet',      cfg.use_effnet)
-      fd.append('pipeline_mode',   pipelineMode)
-      if (cfg.yolo_path)     fd.append('yolo_path',     cfg.yolo_path)
-      if (cfg.maskrcnn_path) fd.append('maskrcnn_path', cfg.maskrcnn_path)
-      if (cfg.effnet_path)   fd.append('effnet_path',   cfg.effnet_path)
+    if (running) { toast('A pipeline is already running.', 'error'); return }
 
-      const result = await runDetection(fd)
-      // Persist to sessionStorage for the results page
-      sessionStorage.setItem('mp_last_result', JSON.stringify(result))
-      toast(`Done! ${result.images?.reduce((s, im) => s + (im.summary?.total || 0), 0)} detections.`, 'success')
-      navigate('/results')
-    } catch (err) {
-      toast(err.message, 'error')
-    } finally {
-      setLoading(false)
-    }
+    const fd = new FormData()
+    files.forEach(f => fd.append('files', f))
+    fd.append('yolo_conf',       cfg.yolo_conf)
+    fd.append('mask_threshold',  cfg.mask_threshold)
+    fd.append('pixel_to_micron', cfg.pixel_to_micron)
+    fd.append('crop_padding',    cfg.crop_padding)
+    fd.append('nms_iou',         cfg.nms_iou)
+    fd.append('use_maskrcnn',    cfg.use_maskrcnn)
+    fd.append('use_effnet',      cfg.use_effnet)
+    fd.append('pipeline_mode',   pipelineMode)
+    if (cfg.yolo_path)     fd.append('yolo_path',     cfg.yolo_path)
+    if (cfg.maskrcnn_path) fd.append('maskrcnn_path', cfg.maskrcnn_path)
+    if (cfg.effnet_path)   fd.append('effnet_path',   cfg.effnet_path)
+
+    // Fire and forget — pipeline runs in background via App context
+    startPipeline(fd)
+    setFiles([])
   }
 
   return (
@@ -193,14 +298,41 @@ export default function UploadPage() {
         </p>
       </div>
 
+      {/* Running indicator */}
+      {running && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.625rem',
+          padding: '0.75rem 1rem', borderRadius: 'var(--radius)',
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+        }}>
+          <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+            Pipeline is running in the background. You can navigate freely — you'll be notified when it completes.
+          </span>
+        </div>
+      )}
+
       {/* Top row: Input Images + Parameters side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
         {/* Input Images */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
             <ImageIcon size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Input Images
+            {files.length > 0 && (
+              <span className="badge badge-neutral" style={{ marginLeft: '0.25rem' }}>{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            )}
+            {/* Add More button — appears at top-right when files exist */}
+            {files.length > 0 && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => dropZoneRef.current?.openPicker()}
+                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.6875rem' }}
+              >
+                <UploadCloud size={13} strokeWidth={1.8} /> Add More
+              </button>
+            )}
           </div>
-          <DropZone files={files} onChange={setFiles} />
+          <DropZone files={files} onChange={setFiles} addBtnRef={dropZoneRef} />
         </div>
 
         {/* Parameters — collapsible */}
@@ -222,50 +354,21 @@ export default function UploadPage() {
 
           {paramsOpen && (
             <>
-              <SliderField
-                label="YOLO Confidence"
-                value={cfg.yolo_conf}
-                onChange={v => set('yolo_conf', v)}
-                min={0.01} max={0.95} step={0.01}
-                unit=""
-                tip="Minimum score a detection must have to be kept. Lower values find more particles but may include false positives."
-              />
-
-              <SliderField
-                label="Mask Threshold"
-                value={cfg.mask_threshold}
-                onChange={v => set('mask_threshold', v)}
-                min={0.1} max={0.9} step={0.05}
-                unit=""
-                tip="Cutoff for converting the predicted mask probabilities into a binary shape. Higher values produce tighter, smaller masks."
-              />
-
-              <SliderField
-                label="Pixel → Micron"
-                value={cfg.pixel_to_micron}
-                onChange={v => set('pixel_to_micron', v)}
-                min={0.1} max={10.0} step={0.1}
-                unit=" µm/px"
-                tip="How many micrometres one pixel represents. Calibrate with a stage micrometer so reported sizes are in real-world units."
-              />
-
-              <SliderField
-                label="Crop Padding"
-                value={cfg.crop_padding}
-                onChange={v => set('crop_padding', v)}
-                min={0} max={80} step={1}
-                unit=" px"
-                tip="Extra pixels added around each detected bounding box before cropping. More padding gives the classifier extra context."
-              />
-
-              <SliderField
-                label="NMS IoU"
-                value={cfg.nms_iou}
-                onChange={v => set('nms_iou', v)}
-                min={0.05} max={0.9} step={0.05}
-                unit=""
-                tip="Overlap threshold for removing duplicate detections. Lower values merge more boxes (more aggressive deduplication)."
-              />
+              <SliderField label="YOLO Confidence" value={cfg.yolo_conf} onChange={v => set('yolo_conf', v)}
+                min={0.01} max={0.95} step={0.01} unit=""
+                tip="Minimum score a detection must have to be kept." />
+              <SliderField label="Mask Threshold" value={cfg.mask_threshold} onChange={v => set('mask_threshold', v)}
+                min={0.1} max={0.9} step={0.05} unit=""
+                tip="Cutoff for converting mask probabilities into a binary shape." />
+              <SliderField label="Pixel → Micron" value={cfg.pixel_to_micron} onChange={v => set('pixel_to_micron', v)}
+                min={0.1} max={10.0} step={0.1} unit=" µm/px"
+                tip="How many micrometres one pixel represents." />
+              <SliderField label="Crop Padding" value={cfg.crop_padding} onChange={v => set('crop_padding', v)}
+                min={0} max={80} step={1} unit=" px"
+                tip="Extra pixels added around each detected bounding box." />
+              <SliderField label="NMS IoU" value={cfg.nms_iou} onChange={v => set('nms_iou', v)}
+                min={0.05} max={0.9} step={0.05} unit=""
+                tip="Overlap threshold for removing duplicate detections." />
             </>
           )}
         </div>
@@ -277,37 +380,49 @@ export default function UploadPage() {
           <Settings size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Pipeline Modules
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <Toggle
-            checked={cfg.use_effnet}
-            onChange={v => set('use_effnet', v)}
+          <Toggle checked={cfg.use_effnet} onChange={v => set('use_effnet', v)}
             label="EfficientNet Classification"
-            description="Refines YOLO class predictions (fiber / film / fragment)"
-          />
-          <Toggle
-            checked={cfg.use_maskrcnn}
-            onChange={v => set('use_maskrcnn', v)}
+            description="Refines YOLO class predictions (fiber / film / fragment)" />
+          <Toggle checked={cfg.use_maskrcnn} onChange={v => set('use_maskrcnn', v)}
             label="Mask R-CNN Segmentation"
-            description="Precise pixel-level masks for size measurement. Falls back to ellipse if disabled."
-          />
+            description="Precise pixel-level masks for size measurement. Falls back to ellipse if disabled." />
         </div>
       </div>
 
-      {/* Run button */}
-      <button
-        className="btn btn-primary btn-lg"
-        onClick={handleRun}
-        disabled={loading || files.length === 0}
-        style={{ width: '100%', justifyContent: 'center', fontSize: '0.8125rem', letterSpacing: '.02em' }}
-      >
-        {loading ? (
-          <>
-            <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-            Running pipeline…
-          </>
-        ) : (
-          <><Play size={15} fill="currentColor" /> Run {pipelineMode.charAt(0).toUpperCase() + pipelineMode.slice(1)} Detection Pipeline</>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: '0.625rem' }}>
+        {/* Stitch button — macro mode only, 2+ images */}
+        {pipelineMode === 'macro' && files.length > 1 && (
+          <button
+            className="btn btn-secondary btn-lg"
+            onClick={() => {
+              stitchCtx.setFiles([...files])
+              navigate('/stitch')
+            }}
+            disabled={running}
+            style={{ flex: '0 0 auto', justifyContent: 'center', fontSize: '0.8125rem', letterSpacing: '.02em' }}
+          >
+            <Layers size={15} strokeWidth={1.8} /> Stitch {files.length} Images
+          </button>
         )}
-      </button>
+
+        {/* Run detection button */}
+        <button
+          className="btn btn-primary btn-lg"
+          onClick={handleRun}
+          disabled={running || files.length === 0}
+          style={{ flex: 1, justifyContent: 'center', fontSize: '0.8125rem', letterSpacing: '.02em' }}
+        >
+          {running ? (
+            <>
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              Pipeline running…
+            </>
+          ) : (
+            <><Play size={15} fill="currentColor" /> Run {pipelineMode.charAt(0).toUpperCase() + pipelineMode.slice(1)} Detection Pipeline</>
+          )}
+        </button>
+      </div>
     </div>
   )
 }

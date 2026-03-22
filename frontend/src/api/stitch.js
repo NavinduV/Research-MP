@@ -82,3 +82,19 @@ export async function deleteStitch(sessionId) {
   if (!res.ok) throw new Error('Delete failed')
   return res.json()
 }
+
+/**
+ * POST /api/stitch/upload-and-analyze
+ * Upload browser File objects for stitching — saves them to a temp
+ * folder on the server and runs brightness analysis.
+ */
+export async function uploadAndAnalyzeForStitch(files) {
+  const fd = new FormData()
+  files.forEach(f => fd.append('files', f))
+  const res = await fetch(`${BASE}/stitch/upload-and-analyze`, { method: 'POST', body: fd })
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(d.detail || 'Upload failed')
+  }
+  return res.json()
+}

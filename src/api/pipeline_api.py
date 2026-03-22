@@ -657,8 +657,40 @@ async def get_original(job_id: str, file_index: int):
 
 @app.get("/api/jobs")
 async def list_jobs():
-    """List all jobs in memory."""
-    return {"jobs": [{"job_id": k, **v} for k, v in _jobs.items()]}
+    """List all jobs — merges in-memory state with persisted results on disk."""
+    all_jobs: dict[str, dict] = {}
+
+    # 1. Scan results/ directory for persisted reports
+    if RESULTS_DIR.exists():
+        for job_dir in RESULTS_DIR.iterdir():
+            if not job_dir.is_dir():
+                continue
+            report_path = job_dir / "report.json"
+            if report_path.exists():
+                try:
+                    with open(report_path) as f:
+                        report = json.load(f)
+                    jid = report.get("job_id", job_dir.name)
+                    all_jobs[jid] = {
+                        "status": "done",
+                        "created_at": report.get("created_at", 0),
+                        "pipeline_mode": report.get("pipeline_mode",
+                                                     report.get("config", {}).get("pipeline_mode", "macro")),
+                        "total_detections": sum(
+                            im.get("summary", {}).get("total", 0)
+                            for im in report.get("images", [])
+                        ),
+                        "image_count": len(report.get("images", [])),
+                    }
+                except Exception:
+                    pass
+
+    # 2. Overlay in-memory state (may have running / error jobs not yet persisted)
+    for k, v in _jobs.items():
+        if k not in all_jobs or v.get("status") in ("running", "error"):
+            all_jobs[k] = v
+
+    return {"jobs": [{"job_id": k, **v} for k, v in all_jobs.items()]}
 
 
 # ---------------------------------------------------------------------------
@@ -666,6 +698,60 @@ async def list_jobs():
 # ---------------------------------------------------------------------------
 
 _stitch_cache: dict[str, dict] = {}
+
+# Temp directory for uploaded stitch images
+_STITCH_UPLOAD_DIR = BASE_DIR / "uploads" / "_stitch_temp"
+
+
+@app.post("/api/stitch/upload-and-analyze")
+async def stitch_upload_and_analyze(files: list[UploadFile] = File(...)):
+    """
+    Accept uploaded image files, save to a temp directory on disk,
+    run brightness grouping, and return the analysis with server-side paths.
+    This enables the "Stitch These" flow from the upload page.
+    """
+    from src.img_preprocess.macro_stitch_pipeline import group_images_by_brightness
+
+    # Create a unique temp sub-directory
+    session = str(uuid.uuid4())[:8]
+    temp_dir = _STITCH_UPLOAD_DIR / session
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+    for upload in files:
+        ext = Path(upload.filename).suffix or ".png"
+        safe_name = upload.filename.replace(" ", "_")
+        dest = temp_dir / safe_name
+        with open(dest, "wb") as f:
+            shutil.copyfileobj(upload.file, f)
+        saved_paths.append(str(dest.resolve()))
+
+    # Run brightness analysis
+    groups = group_images_by_brightness(str(temp_dir))
+    if not groups:
+        # If grouping fails, create a single group with all images
+        groups_result = {"0": [
+            {"path": p.replace("\\", "/"), "filename": Path(p).name, "brightness": 0}
+            for p in saved_paths
+        ]}
+    else:
+        groups_result = {}
+        for brightness_level, images in sorted(groups.items()):
+            key = str(int(brightness_level))
+            groups_result[key] = [
+                {
+                    "path": img["path"].replace("\\", "/"),
+                    "filename": img["filename"],
+                    "brightness": round(img["brightness"], 1),
+                }
+                for img in images
+            ]
+
+    return {
+        "groups": groups_result,
+        "folder": str(temp_dir.resolve()).replace("\\", "/"),
+        "uploaded_count": len(saved_paths),
+    }
 
 
 @app.post("/api/stitch/analyze")
