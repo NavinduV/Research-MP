@@ -67,7 +67,7 @@ const GRID      = { strokeDasharray: '3 3', stroke: '#e2e8f0' }
 /* ═══════════════════════════════════════════════════════════════
    LAB REPORT HEADER
    ═══════════════════════════════════════════════════════════════ */
-function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport, onPrint }) {
+function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport, onPrint, pipelineMode }) {
   const now = new Date()
   return (
     <div className="lab-report-header">
@@ -78,7 +78,37 @@ function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport
           </div>
           <div>
             <h1 className="lab-report-header__title">Microplastic Analysis Report</h1>
-            <p className="lab-report-header__subtitle">Automated detection and morphometric characterisation</p>
+            <p className="lab-report-header__subtitle">
+              Automated detection and morphometric characterisation
+              {pipelineMode && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  marginLeft: '0.5rem',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.625rem',
+                  fontWeight: 700,
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  background: pipelineMode === 'macro'
+                    ? 'rgba(14,165,233,.12)'
+                    : 'rgba(168,85,247,.12)',
+                  color: pipelineMode === 'macro'
+                    ? '#0ea5e9'
+                    : '#a855f7',
+                  border: `1px solid ${
+                    pipelineMode === 'macro'
+                      ? 'rgba(14,165,233,.25)'
+                      : 'rgba(168,85,247,.25)'
+                  }`,
+                  verticalAlign: 'middle',
+                }}>
+                  {pipelineMode === 'macro' ? '🔬' : '🔎'} {pipelineMode}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="lab-report-header__actions">
@@ -628,7 +658,7 @@ export default function ResultsPage() {
   }
 
   /* ── Data extraction ── */
-  const { job_id, images = [], config = {} } = result
+  const { job_id, images = [], config = {}, pipeline_mode: pipelineMode } = result
   const pixelToMicron = config.pixel_to_micron || 1.0
   const unit = pixelToMicron !== 1.0 ? 'µm' : 'px'
 
@@ -688,6 +718,7 @@ export default function ResultsPage() {
         jobId={job_id} imageCount={images.length} unit={unit}
         pixelToMicron={pixelToMicron} totalN={totalN}
         onExport={handleExport} onPrint={handlePrint}
+        pipelineMode={pipelineMode || config.pipeline_mode || 'macro'}
       />
 
       {/* 1 — KPI Overview */}

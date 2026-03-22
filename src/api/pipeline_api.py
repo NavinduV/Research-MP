@@ -140,27 +140,42 @@ def _get_models(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _default_model_path(name: str) -> str:
-    candidates = {
-        "yolo": [
-            "experiments/macro/yolo/best.pt",
-            "experiments/macro/microplastic_yolo/weights/best.pt",
-            "experiments/yolo/best.pt",
-            "experiments/microplastic_yolo/weights/best.pt",
-            "experiments/microplastic_yolo_max_accuracy/weights/best.pt",
-            "experiments/yolo/weights/best.pt",
-        ],
-        "maskrcnn": [
-            "experiments/macro/maskrcnn/maskrcnn_crops_best.pth",
-            "experiments/maskrcnn/maskrcnn_crops_best.pth",
-            "experiments/maskrcnn_crops_best.pth",
-        ],
-        "effnet": [
-            "experiments/macro/efficientnet/efficientnet_best.pth",
-            "experiments/efficientnet/efficientnet_best.pth",
-            "experiments/efficientnet_best.pth",
-        ],
+def _default_model_path(name: str, mode: str = "macro") -> str:
+    """Return the best available model path for the given mode (macro/micro)."""
+    _CANDIDATES = {
+        "macro": {
+            "yolo": [
+                "experiments/macro/yolo/best.pt",
+                "experiments/macro/microplastic_yolo/weights/best.pt",
+                "experiments/yolo/best.pt",
+                "experiments/microplastic_yolo/weights/best.pt",
+                "experiments/microplastic_yolo_max_accuracy/weights/best.pt",
+                "experiments/yolo/weights/best.pt",
+            ],
+            "maskrcnn": [
+                "experiments/macro/maskrcnn/maskrcnn_crops_best.pth",
+                "experiments/maskrcnn/maskrcnn_crops_best.pth",
+                "experiments/maskrcnn_crops_best.pth",
+            ],
+            "effnet": [
+                "experiments/macro/efficientnet/efficientnet_best.pth",
+                "experiments/efficientnet/efficientnet_best.pth",
+                "experiments/efficientnet_best.pth",
+            ],
+        },
+        "micro": {
+            "yolo": [
+                "experiments/micro/yolo/best.pt",
+            ],
+            "maskrcnn": [
+                "experiments/micro/maskrcnn/maskrcnn_crops_best.pth",
+            ],
+            "effnet": [
+                "experiments/micro/efficientnet/efficientnet_best.pth",
+            ],
+        },
     }
+    candidates = _CANDIDATES.get(mode, _CANDIDATES["macro"])
     for rel in candidates.get(name, []):
         full = BASE_DIR / rel
         if full.exists():
@@ -273,9 +288,16 @@ async def health():
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "jobs_in_memory": len(_jobs),
         "default_models": {
-            "yolo": _default_model_path("yolo"),
-            "maskrcnn": _default_model_path("maskrcnn"),
-            "effnet": _default_model_path("effnet"),
+            "macro": {
+                "yolo": _default_model_path("yolo", "macro"),
+                "maskrcnn": _default_model_path("maskrcnn", "macro"),
+                "effnet": _default_model_path("effnet", "macro"),
+            },
+            "micro": {
+                "yolo": _default_model_path("yolo", "micro"),
+                "maskrcnn": _default_model_path("maskrcnn", "micro"),
+                "effnet": _default_model_path("effnet", "micro"),
+            },
         },
     }
 
@@ -283,6 +305,7 @@ async def health():
 @app.post("/api/detect")
 async def detect(
     files: list[UploadFile] = File(...),
+    pipeline_mode: str = Form(default="macro"),
     yolo_path: str = Form(default=""),
     maskrcnn_path: str = Form(default=""),
     effnet_path: str = Form(default=""),
@@ -319,9 +342,23 @@ async def detect(
     from src.pipeline.filter_mask import detect_filter_circle_from_array
     import torch
 
-    yolo_path = yolo_path or _default_model_path("yolo")
-    maskrcnn_path = maskrcnn_path or _default_model_path("maskrcnn")
-    effnet_path = effnet_path or _default_model_path("effnet")
+    # Normalise mode
+    pipeline_mode = pipeline_mode.strip().lower()
+    if pipeline_mode not in ("macro", "micro"):
+        pipeline_mode = "macro"
+
+    # Choose micro-specific per-type loader when in micro mode
+    load_per_type_fn = load_per_type_maskrcnn
+    if pipeline_mode == "micro":
+        from src.pipeline.pipeline_inference_micro import (
+            load_per_type_maskrcnn_micro,
+            run_yolo_detection as run_yolo_detection_micro,
+        )
+        load_per_type_fn = load_per_type_maskrcnn_micro
+
+    yolo_path = yolo_path or _default_model_path("yolo", pipeline_mode)
+    maskrcnn_path = maskrcnn_path or _default_model_path("maskrcnn", pipeline_mode)
+    effnet_path = effnet_path or _default_model_path("effnet", pipeline_mode)
 
     job_id = str(uuid.uuid4())
     job_dir = RESULTS_DIR / job_id
@@ -348,9 +385,9 @@ async def detect(
         per_type_models: dict = {}
         fallback_maskrcnn = None
         if use_maskrcnn:
-            per_type_cache_key = "maskrcnn_per_type"
+            per_type_cache_key = f"maskrcnn_per_type:{pipeline_mode}"
             if per_type_cache_key not in _model_cache:
-                _model_cache[per_type_cache_key] = load_per_type_maskrcnn(device)
+                _model_cache[per_type_cache_key] = load_per_type_fn(device)
             per_type_models = _model_cache[per_type_cache_key]
 
             # Fallback for types without per-type model
@@ -535,8 +572,10 @@ async def detect(
 
         full_report = {
             "job_id": job_id,
+            "pipeline_mode": pipeline_mode,
             "created_at": time.time(),
             "config": {
+                "pipeline_mode": pipeline_mode,
                 "yolo_conf": yolo_conf,
                 "mask_threshold": mask_threshold,
                 "pixel_to_micron": pixel_to_micron,

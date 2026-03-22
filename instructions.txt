@@ -94,7 +94,7 @@ python src/train/train_yolo.py --mode train --data data/yolo/dataset.yaml --epoc
 50 --model-size l --batch 8 --imgsz 1280
 
 #check Yolo
-python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo/weights/best.pt --image "dev-test\stitched\s2.png" --conf 0.01
+python src/train/train_yolo.py --mode predict --model experiments/macro/yolo/best.pt --image "datasets\stitched\s2.png" --conf 0.01
 
 
 
@@ -219,27 +219,6 @@ python src/data_preparation/view_external_datasets.py --dataset seamap
 
 
 
-#Start label studio:
-$env:LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED="true"
-$env:LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT="D:\Research_Dev\mp-detect\data\crops"
-$env:DATA_UPLOAD_MAX_NUMBER_FILES="10000"
-label-studio start --port 8080
-
-
-#Create projects
-cd D:\Research_Dev\mp-detect
-.\venv\Scripts\Activate.ps1
-pip install label-studio-sdk
-python src/data_preparation/setup_labelstudio.py --url http://localhost:8080 --api-key <YOUR_TOKEN>
-
-#Access Token for Label Studio
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA4MDAwNjU1NCwiaWF0IjoxNzcyODA2NTU0LCJqdGkiOiJiOTMyMTYxOGI1M2E0ZjA2OWZhMmYzNmQ5MWIxMjVlNCIsInVzZXJfaWQiOiIxIn0.mNVLK6BXfZiA_7oNNO9OCK7RRIdzSqY2QCL3ojsQMt0
-
-
-
-#Manual export labelme mp crop types for maskrcnn
-python src/data_preparation/export_labelstudio.py --email researchmicroplastic@gmail.com --password "ResearchMP21844;" --types fiber
-
 
 #Run pipeline with per-type Mask R-CNN routing (auto-discovers models)
 python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
@@ -274,3 +253,38 @@ python src\data_preparation\extract_crops_micro.py --yolo-dir "data\micro\yolo" 
 
 ###Augmenting the created crops for efficientnet training
 python src\data_preparation\augment_crops_micro.py --input "data\micro\crops" --output "data\micro\crops_augmented"
+
+
+
+###Stitching (Auto-Backend-cmd)
+$inputFolder = "datasets/raw/Sample1/Macro"
+$outputFolder = "datasets/stitched_auto"
+$outputFile = "s1_auto.png"
+New-Item -ItemType Directory -Force -Path $outputFolder | Out-Null
+python src/img_preprocess/macro_stitch_pipeline.py $inputFolder (Join-Path $outputFolder $outputFile) --max-dim 8192 --max-stitch-dim 8192 --auto-wb --denoise 8 --sharpen 0.8
+py $inputFolder (Join-Path $outputFolder $outputFile) --max-dim 8192 --max-stitch-dim 8192 --auto-wb --denoise 8 --sharpen 0.8
+
+
+
+
+
+================================================================================
+Label Studio setup for mask r-cnn
+================================================================================
+
+###Start label studio:
+$env:LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED="true"
+$env:LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT="D:\Research_Dev\mp-detect\data\crops"
+$env:DATA_UPLOAD_MAX_NUMBER_FILES="10000"
+label-studio start --port 8080
+
+
+###Create projects:
+pip install label-studio-sdk
+python src/data_preparation/setup_labelstudio.py --url http://localhost:8080 --api-key <YOUR_TOKEN>
+
+#Access Token for Label Studio (Mine)
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA4MDAwNjU1NCwiaWF0IjoxNzcyODA2NTU0LCJqdGkiOiJiOTMyMTYxOGI1M2E0ZjA2OWZhMmYzNmQ5MWIxMjVlNCIsInVzZXJfaWQiOiIxIn0.mNVLK6BXfZiA_7oNNO9OCK7RRIdzSqY2QCL3ojsQMt0
+
+#Manual export labelme mp crop types for maskrcnn
+python src/data_preparation/export_labelstudio.py --email researchmicroplastic@gmail.com --password "ResearchMP21844;" --types fiber

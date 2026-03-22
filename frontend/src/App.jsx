@@ -10,10 +10,14 @@ import { ToastContainer } from './components/Toast.jsx'
 const ToastCtx = createContext(null)
 export const useToast = () => useContext(ToastCtx)
 
-function Layout({ children }) {
+// Pipeline mode context — "macro" or "micro"
+const PipelineModeCtx = createContext(null)
+export const usePipelineMode = () => useContext(PipelineModeCtx)
+
+function Layout({ children, mode, setMode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
-      <Navbar />
+      <Navbar mode={mode} setMode={setMode} />
       <main style={{ flex: 1, padding: '1.5rem 2rem 3rem', maxWidth: 1440, margin: '0 auto', width: '100%' }}>
         {children}
       </main>
@@ -28,7 +32,46 @@ const NAV_TABS = [
   { to: '/history', icon: <ClipboardList size={16} />, label: 'History' },
 ]
 
-function Navbar() {
+function ModeToggle({ mode, setMode }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      background: 'var(--surface2)',
+      borderRadius: 'var(--radius)',
+      border: '1px solid var(--border)',
+      padding: '2px',
+      gap: 0,
+    }}>
+      {['macro', 'micro'].map(m => (
+        <button
+          key={m}
+          onClick={() => setMode(m)}
+          style={{
+            border: 'none',
+            cursor: 'pointer',
+            padding: '5px 14px',
+            borderRadius: 'calc(var(--radius) - 2px)',
+            fontSize: '0.75rem',
+            fontWeight: mode === m ? 700 : 500,
+            letterSpacing: '.03em',
+            textTransform: 'uppercase',
+            transition: 'all .2s ease',
+            background: mode === m
+              ? (m === 'macro' ? 'var(--primary)' : '#a855f7')
+              : 'transparent',
+            color: mode === m ? '#fff' : 'var(--text-muted)',
+            boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,.18)' : 'none',
+          }}
+        >
+          {m === 'macro' ? '🔬 Macro' : '🔎 Micro'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Navbar({ mode, setMode }) {
   return (
     <nav style={{
       background: 'var(--surface)',
@@ -87,8 +130,9 @@ function Navbar() {
         ))}
       </div>
 
-      {/* Right: version badge */}
+      {/* Right side: Mode toggle + version */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <ModeToggle mode={mode} setMode={setMode} />
         <span className="badge badge-primary" style={{ fontSize: '0.625rem' }}>v2.0</span>
       </div>
     </nav>
@@ -97,6 +141,7 @@ function Navbar() {
 
 function App() {
   const [toasts, setToasts] = useState([])
+  const [pipelineMode, setPipelineMode] = useState('macro')
 
   const addToast = useCallback((msg, type = 'info') => {
     const id = Date.now()
@@ -106,18 +151,20 @@ function App() {
 
   return (
     <ToastCtx.Provider value={addToast}>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Navigate to="/detect" replace />} />
-            <Route path="/detect" element={<UploadPage />} />
-            <Route path="/stitch" element={<StitchPage />} />
-            <Route path="/results" element={<ResultsPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-          </Routes>
-        </Layout>
-        <ToastContainer toasts={toasts} />
-      </BrowserRouter>
+      <PipelineModeCtx.Provider value={{ mode: pipelineMode, setMode: setPipelineMode }}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Layout mode={pipelineMode} setMode={setPipelineMode}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/detect" replace />} />
+              <Route path="/detect" element={<UploadPage />} />
+              <Route path="/stitch" element={<StitchPage />} />
+              <Route path="/results" element={<ResultsPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+            </Routes>
+          </Layout>
+          <ToastContainer toasts={toasts} />
+        </BrowserRouter>
+      </PipelineModeCtx.Provider>
     </ToastCtx.Provider>
   )
 }

@@ -1,0 +1,13 @@
+{
+  "original_size": [
+    3157,
+    3170
+  ],
+  "output_size": [
+    3157,
+    3170
+  ],
+  "scale": 1.0,
+  "image_path": "datasets\\stitched_auto\\s1_auto.png",
+  "label_path": "datasets\\stitched_auto\\s1_auto.txt"
+}

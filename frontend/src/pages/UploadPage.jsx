@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info } from 'lucide-react'
 import { runDetection } from '../api/detect.js'
-import { useToast } from '../App.jsx'
+import { useToast, usePipelineMode } from '../App.jsx'
 
 const DEFAULTS = {
   yolo_conf: 0.1,
@@ -129,6 +129,7 @@ export default function UploadPage() {
   const [paramsOpen, setParamsOpen] = useState(true)
   const navigate = useNavigate()
   const toast = useToast()
+  const { mode: pipelineMode } = usePipelineMode()
 
   const set = (key, val) => setCfg(c => ({ ...c, [key]: val }))
 
@@ -145,6 +146,7 @@ export default function UploadPage() {
       fd.append('nms_iou',         cfg.nms_iou)
       fd.append('use_maskrcnn',    cfg.use_maskrcnn)
       fd.append('use_effnet',      cfg.use_effnet)
+      fd.append('pipeline_mode',   pipelineMode)
       if (cfg.yolo_path)     fd.append('yolo_path',     cfg.yolo_path)
       if (cfg.maskrcnn_path) fd.append('maskrcnn_path', cfg.maskrcnn_path)
       if (cfg.effnet_path)   fd.append('effnet_path',   cfg.effnet_path)
@@ -165,11 +167,37 @@ export default function UploadPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-          Microplastic Detection
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
+            Microplastic Detection
+          </h1>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            padding: '3px 10px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.6875rem',
+            fontWeight: 700,
+            letterSpacing: '.06em',
+            textTransform: 'uppercase',
+            background: pipelineMode === 'macro'
+              ? 'rgba(14,165,233,.12)'
+              : 'rgba(168,85,247,.12)',
+            color: pipelineMode === 'macro'
+              ? 'var(--primary)'
+              : '#a855f7',
+            border: `1px solid ${
+              pipelineMode === 'macro'
+                ? 'rgba(14,165,233,.25)'
+                : 'rgba(168,85,247,.25)'
+            }`,
+          }}>
+            {pipelineMode === 'macro' ? '🔬' : '🔎'} {pipelineMode} mode
+          </span>
+        </div>
         <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-          Upload microscopy images. The pipeline runs YOLO → EfficientNet classification → Mask&nbsp;R-CNN segmentation → size analysis.
+          Upload {pipelineMode === 'macro' ? 'macro' : 'micro'} microscopy images. The pipeline runs YOLO → EfficientNet classification → Mask&nbsp;R-CNN segmentation → size analysis.
         </p>
       </div>
 
@@ -285,7 +313,7 @@ export default function UploadPage() {
             Running pipeline…
           </>
         ) : (
-          <><Play size={18} fill="currentColor" /> Run Detection Pipeline</>
+          <><Play size={18} fill="currentColor" /> Run {pipelineMode.charAt(0).toUpperCase() + pipelineMode.slice(1)} Detection Pipeline</>
         )}
       </button>
     </div>
