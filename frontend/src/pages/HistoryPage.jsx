@@ -36,7 +36,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-        <Loader2 className="spinner text-primary" size={32} />
+        <Loader2 className="spinner" size={28} style={{ color: 'var(--text-muted)' }} />
       </div>
     )
   }
@@ -44,7 +44,7 @@ export default function HistoryPage() {
   if (error) {
     return (
       <div className="empty-state">
-        <div className="icon text-danger"><AlertTriangle size={48} strokeWidth={1.5} /></div>
+        <div className="icon" style={{ color: 'var(--text-muted)' }}><AlertTriangle size={44} strokeWidth={1.5} /></div>
         <p>Could not reach backend: <strong>{error}</strong></p>
         <p className="text-sm text-muted" style={{ marginTop: '0.5rem' }}>Make sure the FastAPI server is running on port 8000.</p>
       </div>
@@ -54,7 +54,7 @@ export default function HistoryPage() {
   if (jobs.length === 0) {
     return (
       <div className="empty-state" style={{ marginTop: '4rem' }}>
-        <div className="icon text-muted"><ClipboardList size={48} strokeWidth={1.5} /></div>
+        <div className="icon" style={{ color: 'var(--text-muted)' }}><ClipboardList size={44} strokeWidth={1.5} /></div>
         <h2 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>No past jobs</h2>
         <p className="text-muted text-sm">Past detection jobs will appear here (current session only).</p>
       </div>
@@ -63,7 +63,7 @@ export default function HistoryPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Job History</h1>
+      <h1 style={{ fontSize: '1.375rem', fontWeight: 700, marginBottom: '1.25rem' }}>Job History</h1>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="data-table">
           <thead>
@@ -78,13 +78,13 @@ export default function HistoryPage() {
             {[...jobs].reverse().map(j => (
               <tr key={j.job_id}>
                 <td>
-                  <code style={{ fontSize: '0.75rem', background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>
+                  <code style={{ fontSize: '0.6875rem', background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>
                     {j.job_id.slice(0, 12)}…
                   </code>
                 </td>
                 <td>
                   <span className={`badge ${j.status === 'done' ? 'badge-primary' : j.status === 'error' ? '' : 'badge-neutral'}`}
-                    style={j.status === 'error' ? { background: 'rgba(248,113,113,.15)', color: 'var(--danger)' } : {}}>
+                    style={j.status === 'error' ? { background: 'rgba(153,27,27,.08)', color: '#991b1b', border: '1px solid rgba(153,27,27,.15)' } : {}}>
                     {j.status}
                   </span>
                 </td>
@@ -92,7 +92,7 @@ export default function HistoryPage() {
                 <td>
                   {j.status === 'done' && (
                     <button className="btn btn-ghost btn-sm" onClick={() => loadJob(j.job_id)} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      Load Results <ArrowRight size={14} />
+                      Load Results <ArrowRight size={13} strokeWidth={1.8} />
                     </button>
                   )}
                 </td>

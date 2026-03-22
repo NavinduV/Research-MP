@@ -216,11 +216,15 @@ def main():
                         help="Label Studio API key (from Account → Access Token)")
     parser.add_argument("--crops-root", default="data/crops",
                         help="Path to crops root dir with fiber/, film/, fragment/ subfolders")
+    parser.add_argument("--projects-only", action="store_true",
+                        help="Only create projects, skip image import (upload manually later)")
     args = parser.parse_args()
 
+    projects_only = args.projects_only
     crops_root = Path(args.crops_root).resolve()
-    if not crops_root.exists():
+    if not projects_only and not crops_root.exists():
         print(f"ERROR: crops-root not found: {crops_root}")
+        print("       Use --projects-only to skip image import.")
         sys.exit(1)
 
     ls_url  = args.url.rstrip("/")
@@ -251,6 +255,10 @@ def main():
             label_config=cfg["config"],
             color=cfg["color"],
         )
+
+        if projects_only:
+            print(f"  ✅ {cfg['title']} ready (projects-only mode, no import)\n")
+            continue
 
         # 2. Check existing task count — skip if already populated
         try:

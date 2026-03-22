@@ -57,12 +57,12 @@ function buildHistogram(values, bins) {
    CHART THEME
    ═══════════════════════════════════════════════════════════════ */
 const TIP_STYLE = {
-  background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b',
+  background: '#fff', border: '1px solid #e3e6eb', color: '#111827',
   borderRadius: 6, fontSize: 11, boxShadow: '0 4px 12px rgba(0,0,0,.06)',
   padding: '6px 10px',
 }
-const AXIS_TICK = { fill: '#64748b', fontSize: 11 }
-const GRID      = { strokeDasharray: '3 3', stroke: '#e2e8f0' }
+const AXIS_TICK = { fill: '#6b7280', fontSize: 10 }
+const GRID      = { strokeDasharray: '3 3', stroke: '#e3e6eb' }
 
 /* ═══════════════════════════════════════════════════════════════
    LAB REPORT HEADER
@@ -74,7 +74,7 @@ function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport
       <div className="lab-report-header__top">
         <div className="lab-report-header__title-group">
           <div className="lab-report-header__icon">
-            <Microscope size={22} strokeWidth={1.8} />
+            <Microscope size={20} strokeWidth={1.8} />
           </div>
           <div>
             <h1 className="lab-report-header__title">Microplastic Analysis Report</h1>
@@ -84,28 +84,19 @@ function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport
                 <span style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
                   marginLeft: '0.5rem',
                   padding: '2px 8px',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.625rem',
+                  fontSize: '0.5625rem',
                   fontWeight: 700,
                   letterSpacing: '.06em',
                   textTransform: 'uppercase',
-                  background: pipelineMode === 'macro'
-                    ? 'rgba(14,165,233,.12)'
-                    : 'rgba(168,85,247,.12)',
-                  color: pipelineMode === 'macro'
-                    ? '#0ea5e9'
-                    : '#a855f7',
-                  border: `1px solid ${
-                    pipelineMode === 'macro'
-                      ? 'rgba(14,165,233,.25)'
-                      : 'rgba(168,85,247,.25)'
-                  }`,
+                  background: 'var(--surface2)',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
                   verticalAlign: 'middle',
                 }}>
-                  {pipelineMode === 'macro' ? '🔬' : '🔎'} {pipelineMode}
+                  {pipelineMode}
                 </span>
               )}
             </p>
@@ -113,10 +104,10 @@ function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport
         </div>
         <div className="lab-report-header__actions">
           <button className="btn btn-outline btn-sm" onClick={onPrint}>
-            <Printer size={14} /> Print
+            <Printer size={13} strokeWidth={1.8} /> Print
           </button>
           <button className="btn btn-primary btn-sm" onClick={onExport}>
-            <Download size={14} /> Export JSON
+            <Download size={13} strokeWidth={1.8} /> Export JSON
           </button>
         </div>
       </div>
@@ -148,11 +139,11 @@ function Section({ id, title, icon: Icon, open, onToggle, children, className = 
     <section className={`lab-section ${className}`}>
       <div className="lab-section__header" onClick={onToggle} role="button" tabIndex={0}>
         <div className="lab-section__title-group">
-          {Icon && <Icon size={16} className="lab-section__icon" />}
+          {Icon && <Icon size={14} strokeWidth={1.8} className="lab-section__icon" />}
           <h2 className="lab-section__title">{title}</h2>
         </div>
         <div className="lab-section__toggle">
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </div>
       </div>
       {open && <div className="lab-section__body">{children}</div>}
@@ -168,7 +159,7 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
     <div className="kpi-grid">
       {/* Total */}
       <div className="kpi-card kpi-card--primary">
-        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--primary"><Hash size={18} /></div>
+        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--primary"><Hash size={16} strokeWidth={1.8} /></div>
         <div className="kpi-card__body">
           <span className="kpi-card__label">Total Particles</span>
           <span className="kpi-card__value">{totalN}</span>
@@ -178,12 +169,12 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
       {/* Per class */}
       {CLASS_ORDER.map(c => (
         <div key={c} className="kpi-card" style={{ borderLeftColor: CLASS_COLORS[c] }}>
-          <div className="kpi-card__icon-wrap" style={{ background: CLASS_BG[c], color: CLASS_COLORS[c] }}>
-            <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>{CLASS_ICONS[c]}</span>
+          <div className="kpi-card__icon-wrap">
+            <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, color: 'var(--text-muted)' }}>{CLASS_ICONS[c]}</span>
           </div>
           <div className="kpi-card__body">
             <span className="kpi-card__label">{c.charAt(0).toUpperCase() + c.slice(1)}</span>
-            <span className="kpi-card__value" style={{ color: CLASS_COLORS[c] }}>{counts[c]}</span>
+            <span className="kpi-card__value">{counts[c]}</span>
             <span className="kpi-card__sub">{pct(counts[c], totalN)}%</span>
           </div>
         </div>
@@ -191,21 +182,21 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
 
       {/* Confidence */}
       <div className="kpi-card">
-        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--blue"><ShieldCheck size={16} /></div>
+        <div className="kpi-card__icon-wrap"><ShieldCheck size={14} strokeWidth={1.8} /></div>
         <div className="kpi-card__body">
           <span className="kpi-card__label">Avg YOLO Conf</span>
           <span className="kpi-card__value">{fmt(avgYoloConf)}</span>
         </div>
       </div>
       <div className="kpi-card">
-        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--blue"><ShieldCheck size={16} /></div>
+        <div className="kpi-card__icon-wrap"><ShieldCheck size={14} strokeWidth={1.8} /></div>
         <div className="kpi-card__body">
           <span className="kpi-card__label">Avg ENet Conf</span>
           <span className="kpi-card__value">{fmt(avgEffConf)}</span>
         </div>
       </div>
       <div className="kpi-card">
-        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--amber"><ArrowRightLeft size={16} /></div>
+        <div className="kpi-card__icon-wrap"><ArrowRightLeft size={14} strokeWidth={1.8} /></div>
         <div className="kpi-card__body">
           <span className="kpi-card__label">Reclassified</span>
           <span className="kpi-card__value">{reclassified}</span>
@@ -213,7 +204,7 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
         </div>
       </div>
       <div className="kpi-card">
-        <div className="kpi-card__icon-wrap kpi-card__icon-wrap--blue"><Ruler size={16} /></div>
+        <div className="kpi-card__icon-wrap"><Ruler size={14} strokeWidth={1.8} /></div>
         <div className="kpi-card__body">
           <span className="kpi-card__label">Avg Length</span>
           <span className="kpi-card__value">{fmt(avgLength)}</span>
@@ -301,7 +292,7 @@ function LengthHistogram({ histogram }) {
           <XAxis dataKey="range" tick={{ ...AXIS_TICK, fontSize: 9 }} interval={1} />
           <YAxis tick={AXIS_TICK} allowDecimals={false} />
           <Tooltip contentStyle={TIP_STYLE} />
-          <Bar dataKey="count" fill="var(--primary)" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="count" fill="#374151" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -333,7 +324,7 @@ function ConfidenceBars({ detections }) {
             <Bar key={c} dataKey={c} stackId="a" fill={CLASS_COLORS[c]}
               radius={c === 'fragment' ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
           ))}
-          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -351,7 +342,7 @@ function PerClassBars({ perClass, metric, unit }) {
     <ResponsiveContainer width="100%" height={170}>
       <BarChart data={data} margin={{ top: 4, right: 12, bottom: 0, left: -4 }}>
         <CartesianGrid {...GRID} />
-        <XAxis dataKey="name" tick={{ ...AXIS_TICK, fontSize: 12 }} />
+        <XAxis dataKey="name" tick={{ ...AXIS_TICK, fontSize: 11 }} />
         <YAxis tick={AXIS_TICK} unit={unit ? ` ${unit}` : ''} />
         <Tooltip contentStyle={TIP_STYLE} formatter={v => [fmt(v, 2), '']} />
         <Bar dataKey="mean" radius={[3, 3, 0, 0]}>
@@ -384,7 +375,7 @@ function LengthCircScatter({ detections, pixelToMicron }) {
         <ScatterChart margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
           <CartesianGrid {...GRID} />
           <XAxis dataKey="x" name="Length" type="number" tick={AXIS_TICK}
-            label={{ value: 'Length', fill: '#64748b', position: 'insideBottomRight', offset: -6, fontSize: 10 }} />
+            label={{ value: 'Length', fill: '#6b7280', position: 'insideBottomRight', offset: -6, fontSize: 10 }} />
           <YAxis dataKey="y" name="Circularity" domain={[0, 1]} tick={AXIS_TICK} />
           <ZAxis dataKey="z" range={[30, 280]} name="Area" />
           <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={TIP_STYLE}
@@ -392,7 +383,7 @@ function LengthCircScatter({ detections, pixelToMicron }) {
           {CLASS_ORDER.filter(c => byClass[c]).map(c => (
             <Scatter key={c} name={c} data={byClass[c]} fill={CLASS_COLORS[c]} opacity={0.7} />
           ))}
-          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
         </ScatterChart>
       </ResponsiveContainer>
     </div>
@@ -443,7 +434,7 @@ function MorphometricTable({ perClass, unit }) {
           {metrics.map(({ key, label, icon: MIcon }, ri) => (
             <tr key={key} className={ri % 2 === 0 ? 'morpho-table__row--even' : ''}>
               <td className="morpho-table__metric-cell">
-                {MIcon && <MIcon size={12} />}
+                {MIcon && <MIcon size={11} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} />}
                 {label}
               </td>
               {cols.map(c => {
@@ -580,7 +571,7 @@ function ImageViewer({ jobId, images }) {
         {total > 1 && (
           <div className="pill-bar" style={{ marginRight: '0.75rem' }}>
             {images.map((img, i) => (
-              <button key={i} onClick={() => setImgIdx(i)} className={`pill ${imgIdx === i ? 'active' : ''}`} style={{ fontSize: '0.75rem' }}>
+              <button key={i} onClick={() => setImgIdx(i)} className={`pill ${imgIdx === i ? 'active' : ''}`} style={{ fontSize: '0.6875rem' }}>
                 {img.filename || `Image ${i + 1}`}
               </button>
             ))}
@@ -588,9 +579,9 @@ function ImageViewer({ jobId, images }) {
         )}
         <div className="pill-bar">
           {[
-            ['vis', <><ImageIcon size={13} /> Annotated</>],
-            ['mask', <><Layers size={13} /> Masks</>],
-            ['original', <><Maximize size={13} /> Original</>],
+            ['vis', <><ImageIcon size={12} strokeWidth={1.8} /> Annotated</>],
+            ['mask', <><Layers size={12} strokeWidth={1.8} /> Masks</>],
+            ['original', <><Maximize size={12} strokeWidth={1.8} /> Original</>],
           ].map(([k, lbl]) => (
             <button key={k} className={`pill ${mode === k ? 'active' : ''}`} onClick={() => setMode(k)}
               style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>{lbl}</button>
@@ -648,10 +639,10 @@ export default function ResultsPage() {
   if (!result) {
     return (
       <div className="empty-state" style={{ marginTop: '5rem' }}>
-        <FlaskConical size={48} strokeWidth={1.3} className="text-muted" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+        <FlaskConical size={44} strokeWidth={1.3} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.4 }} />
         <h2 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>No analysis results</h2>
-        <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-          Run the detection pipeline on the <a href="/detect" style={{ color: 'var(--primary)' }}>Detect</a> page to generate a report.
+        <p className="text-muted" style={{ fontSize: '0.8125rem' }}>
+          Run the detection pipeline on the <a href="/detect" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Detect</a> page to generate a report.
         </p>
       </div>
     )

@@ -24,7 +24,7 @@ function Toggle({ checked, onChange, label, description }) {
         <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
       </span>
       <span>
-        <div style={{ fontWeight: 500, fontSize: '0.875rem', color: 'var(--text)' }}>{label}</div>
+        <div style={{ fontWeight: 500, fontSize: '0.8125rem', color: 'var(--text)' }}>{label}</div>
         {description && <div className="text-xs text-muted" style={{ marginTop: 2 }}>{description}</div>}
       </span>
     </label>
@@ -34,7 +34,7 @@ function Toggle({ checked, onChange, label, description }) {
 function InfoTip({ tip }) {
   return (
     <span className="info-tip-wrap">
-      <Info size={14} className="info-tip-icon" />
+      <Info size={13} className="info-tip-icon" />
       <span className="info-tip-bubble">{tip}</span>
     </span>
   )
@@ -48,7 +48,7 @@ function SliderField({ label, value, onChange, min, max, step, unit, tip }) {
           <label className="field-label" style={{ margin: 0 }}>{label}</label>
           {tip && <InfoTip tip={tip} />}
         </span>
-        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--primary)', minWidth: 48, textAlign: 'right' }}>
+        <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text)', minWidth: 48, textAlign: 'right', fontFamily: "'JetBrains Mono','Fira Code','Consolas',monospace", fontSize: '0.75rem' }}>
           {value}{unit}
         </span>
       </div>
@@ -82,38 +82,38 @@ function DropZone({ files, onChange }) {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         style={{
-          border: `2px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
+          border: `2px dashed ${dragOver ? 'var(--text-secondary)' : 'var(--border)'}`,
           borderRadius: 'var(--radius)',
           padding: '2.5rem',
           textAlign: 'center',
           cursor: 'pointer',
-          background: dragOver ? 'rgba(14,165,233,0.05)' : 'var(--surface2)',
+          background: dragOver ? 'var(--surface2)' : 'var(--surface2)',
           transition: 'all .15s',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>
-          <UploadCloud size={36} strokeWidth={1.5} />
+          <UploadCloud size={32} strokeWidth={1.5} />
         </div>
-        <p style={{ fontWeight: 500, marginBottom: 4 }}>Drop images here or click to browse</p>
-        <p className="text-sm text-muted">PNG, JPG, TIFF, BMP supported • Multiple files OK</p>
+        <p style={{ fontWeight: 500, marginBottom: 4, fontSize: '0.875rem' }}>Drop images here or click to browse</p>
+        <p className="text-xs text-muted">PNG, JPG, TIFF, BMP supported · Multiple files OK</p>
         <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFiles} />
       </div>
 
       {files.length > 0 && (
-        <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
           {files.map((f, i) => (
             <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              display: 'flex', alignItems: 'center', gap: '0.375rem',
               background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)', padding: '0.375rem 0.75rem',
-              fontSize: '0.8125rem',
+              borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.625rem',
+              fontSize: '0.75rem',
             }}>
-              <FileImage size={14} className="text-muted" />
-              <span className="truncate" style={{ maxWidth: 180 }}>{f.name}</span>
+              <FileImage size={12} style={{ color: 'var(--text-muted)' }} />
+              <span className="truncate" style={{ maxWidth: 160 }}>{f.name}</span>
               <button
                 onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px', display: 'flex', alignItems: 'center' }}
-              ><X size={14} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: '0 2px', display: 'flex', alignItems: 'center' }}
+              ><X size={12} /></button>
             </div>
           ))}
         </div>
@@ -164,49 +164,41 @@ export default function UploadPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
+          <h1 style={{ fontSize: '1.375rem', fontWeight: 700, margin: 0 }}>
             Microplastic Detection
           </h1>
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.35rem',
+            gap: '0.25rem',
             padding: '3px 10px',
             borderRadius: 'var(--radius-sm)',
-            fontSize: '0.6875rem',
+            fontSize: '0.625rem',
             fontWeight: 700,
             letterSpacing: '.06em',
             textTransform: 'uppercase',
-            background: pipelineMode === 'macro'
-              ? 'rgba(14,165,233,.12)'
-              : 'rgba(168,85,247,.12)',
-            color: pipelineMode === 'macro'
-              ? 'var(--primary)'
-              : '#a855f7',
-            border: `1px solid ${
-              pipelineMode === 'macro'
-                ? 'rgba(14,165,233,.25)'
-                : 'rgba(168,85,247,.25)'
-            }`,
+            background: 'var(--surface2)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
           }}>
-            {pipelineMode === 'macro' ? '🔬' : '🔎'} {pipelineMode} mode
+            {pipelineMode} mode
           </span>
         </div>
-        <p className="text-muted" style={{ fontSize: '0.875rem' }}>
+        <p className="text-muted" style={{ fontSize: '0.8125rem' }}>
           Upload {pipelineMode === 'macro' ? 'macro' : 'micro'} microscopy images. The pipeline runs YOLO → EfficientNet classification → Mask&nbsp;R-CNN segmentation → size analysis.
         </p>
       </div>
 
       {/* Top row: Input Images + Parameters side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
         {/* Input Images */}
         <div className="card">
-          <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ImageIcon size={18} className="text-primary" /> Input Images
+          <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            <ImageIcon size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Input Images
           </div>
           <DropZone files={files} onChange={setFiles} />
         </div>
@@ -218,13 +210,13 @@ export default function UploadPage() {
             style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 0,
               fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem',
-              color: 'var(--text)', fontSize: '0.875rem', width: '100%',
+              color: 'var(--text-secondary)', fontSize: '0.8125rem', width: '100%',
             }}
           >
-            <SlidersHorizontal size={18} className="text-primary" />
+            <SlidersHorizontal size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} />
             Parameters
             <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
-              {paramsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {paramsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </span>
           </button>
 
@@ -281,8 +273,8 @@ export default function UploadPage() {
 
       {/* Pipeline toggles */}
       <div className="card">
-        <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Settings size={18} className="text-primary" /> Pipeline Modules
+        <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+          <Settings size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Pipeline Modules
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <Toggle
@@ -305,15 +297,15 @@ export default function UploadPage() {
         className="btn btn-primary btn-lg"
         onClick={handleRun}
         disabled={loading || files.length === 0}
-        style={{ width: '100%', justifyContent: 'center' }}
+        style={{ width: '100%', justifyContent: 'center', fontSize: '0.8125rem', letterSpacing: '.02em' }}
       >
         {loading ? (
           <>
-            <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+            <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
             Running pipeline…
           </>
         ) : (
-          <><Play size={18} fill="currentColor" /> Run {pipelineMode.charAt(0).toUpperCase() + pipelineMode.slice(1)} Detection Pipeline</>
+          <><Play size={15} fill="currentColor" /> Run {pipelineMode.charAt(0).toUpperCase() + pipelineMode.slice(1)} Detection Pipeline</>
         )}
       </button>
     </div>

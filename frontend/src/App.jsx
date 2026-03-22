@@ -18,7 +18,7 @@ function Layout({ children, mode, setMode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar mode={mode} setMode={setMode} />
-      <main style={{ flex: 1, padding: '1.5rem 2rem 3rem', maxWidth: 1440, margin: '0 auto', width: '100%' }}>
+      <main style={{ flex: 1, padding: '1.25rem 2rem 3rem', maxWidth: 1440, margin: '0 auto', width: '100%' }}>
         {children}
       </main>
     </div>
@@ -26,10 +26,10 @@ function Layout({ children, mode, setMode }) {
 }
 
 const NAV_TABS = [
-  { to: '/detect',  icon: <UploadCloud size={16} />, label: 'Detect' },
-  { to: '/stitch',  icon: <Layers size={16} />, label: 'Stitch' },
-  { to: '/results', icon: <BarChart3 size={16} />, label: 'Results' },
-  { to: '/history', icon: <ClipboardList size={16} />, label: 'History' },
+  { to: '/detect',  icon: <UploadCloud size={15} strokeWidth={1.8} />, label: 'Detect' },
+  { to: '/stitch',  icon: <Layers size={15} strokeWidth={1.8} />, label: 'Stitch' },
+  { to: '/results', icon: <BarChart3 size={15} strokeWidth={1.8} />, label: 'Results' },
+  { to: '/history', icon: <ClipboardList size={15} strokeWidth={1.8} />, label: 'History' },
 ]
 
 function ModeToggle({ mode, setMode }) {
@@ -38,7 +38,7 @@ function ModeToggle({ mode, setMode }) {
       display: 'flex',
       alignItems: 'center',
       background: 'var(--surface2)',
-      borderRadius: 'var(--radius)',
+      borderRadius: 'var(--radius-sm)',
       border: '1px solid var(--border)',
       padding: '2px',
       gap: 0,
@@ -50,21 +50,19 @@ function ModeToggle({ mode, setMode }) {
           style={{
             border: 'none',
             cursor: 'pointer',
-            padding: '5px 14px',
-            borderRadius: 'calc(var(--radius) - 2px)',
-            fontSize: '0.75rem',
+            padding: '4px 14px',
+            borderRadius: 'calc(var(--radius-sm) - 2px)',
+            fontSize: '0.6875rem',
             fontWeight: mode === m ? 700 : 500,
-            letterSpacing: '.03em',
+            letterSpacing: '.05em',
             textTransform: 'uppercase',
             transition: 'all .2s ease',
-            background: mode === m
-              ? (m === 'macro' ? 'var(--primary)' : '#a855f7')
-              : 'transparent',
+            background: mode === m ? 'var(--text)' : 'transparent',
             color: mode === m ? '#fff' : 'var(--text-muted)',
-            boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,.18)' : 'none',
+            boxShadow: mode === m ? '0 1px 3px rgba(0,0,0,.15)' : 'none',
           }}
         >
-          {m === 'macro' ? '🔬 Macro' : '🔎 Micro'}
+          {m}
         </button>
       ))}
     </div>
@@ -79,7 +77,7 @@ function Navbar({ mode, setMode }) {
       padding: '0 2rem',
       display: 'flex',
       alignItems: 'center',
-      height: 54,
+      height: 52,
       position: 'sticky',
       top: 0,
       zIndex: 100,
@@ -88,43 +86,44 @@ function Navbar({ mode, setMode }) {
       {/* Branding */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '2.5rem' }}>
         <div style={{
-          width: 30, height: 30, borderRadius: 'var(--radius-sm)',
-          background: 'var(--primary)', display: 'flex', alignItems: 'center',
+          width: 28, height: 28, borderRadius: 'var(--radius-sm)',
+          background: 'var(--text)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', color: '#fff',
         }}>
-          <Microscope size={18} />
+          <Microscope size={16} strokeWidth={1.8} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text)', letterSpacing: '-.01em' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--text)', letterSpacing: '-.01em' }}>
             MP Detect
           </span>
-          <span style={{ fontSize: '0.5625rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: '0.5rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' }}>
             Microplastic Analysis
           </span>
         </div>
       </div>
 
       {/* Nav tabs */}
-      <div style={{ display: 'flex', gap: '0.25rem', height: '100%' }}>
+      <div style={{ display: 'flex', gap: '0.125rem', height: '100%' }}>
         {NAV_TABS.map(({ to, icon, label }) => (
           <NavLink
             key={to}
             to={to}
             style={({ isActive }) => ({
               textDecoration: 'none',
-              color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+              color: isActive ? 'var(--text)' : 'var(--text-muted)',
               fontWeight: isActive ? 600 : 500,
-              fontSize: '0.8125rem',
+              fontSize: '0.75rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.375rem',
-              padding: '0 1rem',
-              borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
+              gap: '0.325rem',
+              padding: '0 0.875rem',
+              borderBottom: isActive ? '2px solid var(--text)' : '2px solid transparent',
               transition: 'color .15s, border-color .15s',
               marginBottom: -1,
+              letterSpacing: '.01em',
             })}
           >
-            <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
+            <span style={{ display: 'flex', alignItems: 'center', opacity: 0.7 }}>{icon}</span>
             {label}
           </NavLink>
         ))}
@@ -133,7 +132,7 @@ function Navbar({ mode, setMode }) {
       {/* Right side: Mode toggle + version */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <ModeToggle mode={mode} setMode={setMode} />
-        <span className="badge badge-primary" style={{ fontSize: '0.625rem' }}>v2.0</span>
+        <span className="badge badge-primary" style={{ fontSize: '0.5625rem' }}>v2.0</span>
       </div>
     </nav>
   )
