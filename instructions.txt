@@ -238,6 +238,8 @@ python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_
 python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_film_sam" --output "data/macro/crops_film_sam_split"
 
 
+###Evaluating Mask-R-CNN Accuracies
+python src/train/eval_maskrcnn.py --model experiments/macro/maskrcnn_fiber/maskrcnn_fiber_best.pth --crops_dir data/macro/crops_fiber_sam_split/val
 
 
 ###Micro Data Preprocessing
@@ -292,3 +294,19 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA
 
 #Manual export labelme mp crop types for maskrcnn
 python src/data_preparation/export_labelstudio.py --email researchmicroplastic@gmail.com --password "ResearchMP21844;" --types fiber
+
+
+###Evaluating YOLO Accuracies (Detailed Metrics)
+# Full validation split
+python src/train/eval_yolo.py --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml --split val --conf-threshold 0.1 --iou-threshold 0.5 --imgsz 1280 --batch-size 8 --save-json results/eval/yolo_metrics.json
+
+# Quick check (first 50 images)
+python src/train/eval_yolo.py --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml --split val --max-images 50 --conf-threshold 0.1 --iou-threshold 0.5
+
+
+###Evaluating EfficientNet Accuracies (Detailed Metrics)
+# Validation split
+python src/train/eval_effnet.py --model experiments/macro/efficientnet/efficientnet_best.pth --crops-dir data/macro/crops --split val --batch-size 16 --save-json results/eval/effnet_metrics.json
+
+# Evaluate all samples (use when split folders are not available)
+python src/train/eval_effnet.py --model experiments/efficientnet/efficientnet_best.pth --crops-dir data/crops_gt_sam --split all --batch-size 16

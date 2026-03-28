@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { getJobs, getResult, imageUrl, maskUrl, originalUrl } from '../api/detect.js'
 import { usePipelineMode, usePipelineJob } from '../App.jsx'
 import {
@@ -636,6 +637,8 @@ export default function HistoryPage() {
 
   const { mode: pipelineMode } = usePipelineMode()
   const { running } = usePipelineJob()
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const fetchJobs = useCallback(() => {
     getJobs()
@@ -644,6 +647,37 @@ export default function HistoryPage() {
   }, [])
 
   useEffect(() => { fetchJobs() }, [fetchJobs])
+
+  // Auto-open job if passed via route state (e.g. immediately after pipeline completion)
+  useEffect(() => {
+    if (location.state?.autoOpenJob && location.state?.autoOpenResult) {
+      if (expandedJob !== location.state.autoOpenJob) {
+        setExpandedJob(location.state.autoOpenJob)
+        setExpandedResult(location.state.autoOpenResult)
+        
+        // Temporarily append to jobs list if it's not there yet to ensure it's rendered inline
+        setJobs(prevJobs => {
+          if (!prevJobs.find(j => j.job_id === location.state.autoOpenJob)) {
+            const resultData = location.state.autoOpenResult
+            const detections = resultData.images?.reduce((sum, im) => sum + (im.summary?.total || 0), 0) || 0
+            const newJob = {
+              job_id: location.state.autoOpenJob,
+              status: 'done',
+              created_at: Date.now() / 1000,
+              total_detections: detections,
+              image_count: resultData.images?.length || 0,
+              pipeline_mode: resultData.pipeline_mode || pipelineMode
+            }
+            return [newJob, ...prevJobs]
+          }
+          return prevJobs
+        })
+        
+        // Remove it from history state so it doesn't reopen if the user navigates away and back
+        navigate(location.pathname, { replace: true, state: {} })
+      }
+    }
+  }, [location.state, location.pathname, expandedJob, pipelineMode, navigate])
 
   // Auto-refresh when pipeline finishes
   useEffect(() => {

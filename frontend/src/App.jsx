@@ -164,6 +164,22 @@ function Navbar({ mode, setMode }) {
   )
 }
 
+function PipelineNavigator() {
+  const { result, clearResult } = usePipelineJob()
+  const navigate = useNavigate()
+
+  React.useEffect(() => {
+    if (result && result.job_id) {
+      // Navigate to history page and pass the result data via location state
+      navigate('/history', { state: { autoOpenJob: result.job_id, autoOpenResult: result } })
+      // Clear the result from context so we don't continuously auto-navigate
+      clearResult()
+    }
+  }, [result, navigate, clearResult])
+
+  return null
+}
+
 function App() {
   const [toasts, setToasts] = useState([])
   const [pipelineMode, setPipelineMode] = useState('macro')
@@ -237,6 +253,7 @@ function App() {
           <StitchFilesCtx.Provider value={stitchFilesValue}>
             <UploadFilesCtx.Provider value={uploadFilesValue}>
               <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <PipelineNavigator />
                 <Layout mode={pipelineMode} setMode={setPipelineMode}>
                   <Routes>
                     <Route path="/" element={<Navigate to="/detect" replace />} />

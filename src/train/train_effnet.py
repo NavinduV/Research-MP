@@ -84,16 +84,39 @@ class CropClassificationDataset(Dataset):
         elif ann_file.exists():
             with open(ann_file) as f:
                 annotations = json.load(f)
+
+            has_split_labels = any(isinstance(v, dict) and ('split' in v) for v in annotations.values())
+            if split and not has_split_labels:
+                print(f"Warning: split '{split}' requested but no split labels found in annotations.json; using all samples.")
             
             for filename, ann in annotations.items():
-                if split and ann.get('split', '') != split:
+                # Only enforce split filtering when split labels exist in annotations.
+                if split and has_split_labels and ann.get('split', '') != split:
                     continue
-                
-                cls_id = ann['class_id']
+
+                cls_id = ann.get('class_id')
+                cls_name = ann.get('class_name')
+
+                if cls_id is None and isinstance(cls_name, str):
+                    cls_id = CLASS_NAME_TO_ID.get(cls_name.lower())
+
+                # Fallback: infer class from filename pattern like *_fiber.png
+                if cls_id is None:
+                    lower_name = filename.lower()
+                    for candidate_name, candidate_id in CLASS_NAME_TO_ID.items():
+                        if candidate_name in lower_name:
+                            cls_id = candidate_id
+                            cls_name = candidate_name
+                            break
+
+                if cls_id is None:
+                    continue
+
+                cls_id = int(cls_id)
                 
                 img_path = self.crops_dir / 'images' / filename
                 if not img_path.exists():
-                    cls_name = ann.get('class_name', CLASS_NAMES[cls_id])
+                    cls_name = cls_name if isinstance(cls_name, str) else CLASS_NAMES[cls_id]
                     img_path = self.crops_dir / cls_name / filename
                 
                 if img_path.exists():
