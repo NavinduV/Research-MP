@@ -87,9 +87,10 @@ PER_TYPE_MODEL_CANDIDATES = {
 
 # Colors for visualization (BGR format for OpenCV)
 COLORS = {
-    'fiber':    (0, 0, 255),     # red
-    'film':     (0, 255, 255),   # yellow
-    'fragment': (0, 255, 0),     # green
+    'fiber':          (0, 0, 255),     # red
+    'film':           (0, 255, 255),   # yellow
+    'fragment':       (0, 255, 0),     # green
+    'microplastic':   (255, 0, 0),     # blue — generic label when EfficientNet is off
 }
 
 
@@ -705,8 +706,9 @@ def run_pipeline(
             final_class_id = effnet_class_id
             classification_source = 'effnet'
         else:
-            final_class_name = det['class_name']
-            final_class_id = det['class_id']
+            # Without EfficientNet, label as generic "microplastic"
+            final_class_name = 'microplastic'
+            final_class_id = -1
             effnet_conf = 0.0
             effnet_probs = None
             classification_source = 'yolo'
@@ -811,7 +813,8 @@ def run_pipeline(
     print(f"\n[6/6] Size analysis...")
     _print_size_summary(results, pixel_to_micron)
     vis_image = _create_visualization(image, results, mask_overlay, pixel_to_micron,
-                                       filter_circle=filter_circle)
+                                       filter_circle=filter_circle,
+                                       use_maskrcnn=use_maskrcnn)
 
     # Save results
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -925,7 +928,7 @@ def _print_size_summary(results, pixel_to_micron):
 
 
 def _create_visualization(image, results, mask_overlay, pixel_to_micron,
-                          filter_circle=None):
+                          filter_circle=None, use_maskrcnn=True):
     """Create annotated visualization image.
 
     Args:
@@ -934,6 +937,7 @@ def _create_visualization(image, results, mask_overlay, pixel_to_micron,
         mask_overlay: Colour mask overlay (H, W, 3).
         pixel_to_micron: Scale factor.
         filter_circle: Optional (center, radius) tuple for the filter paper.
+        use_maskrcnn: If False, skip mask overlay blend — show only boxes + labels.
     """
     vis = image.copy()
 
@@ -942,8 +946,9 @@ def _create_visualization(image, results, mask_overlay, pixel_to_micron,
         center, radius = filter_circle
         cv2.circle(vis, center, radius, (0, 200, 0), 2, cv2.LINE_AA)
 
-    # Blend mask overlay (semi-transparent)
-    vis = cv2.addWeighted(vis, 0.7, mask_overlay, 0.3, 0)
+    # Blend mask overlay (semi-transparent) — only when Mask R-CNN is enabled
+    if use_maskrcnn:
+        vis = cv2.addWeighted(vis, 0.7, mask_overlay, 0.3, 0)
 
     unit = 'um' if pixel_to_micron != 1.0 else 'px'
     scale = pixel_to_micron

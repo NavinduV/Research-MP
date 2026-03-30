@@ -1,0 +1,316 @@
+{
+  "image": "data\\macro\\yolo\\images\\val\\13f013f8-s31-2.png",
+  "yolo_model": "experiments/macro/yolo/best.pt",
+  "effnet_model": "experiments/macro/efficientnet/efficientnet_best.pth",
+  "confidence_threshold": 0.25,
+  "raw_detection_count": 15,
+  "final_detection_count": 12,
+  "efficientnet_changed_count": 0,
+  "class_counts": {
+    "fiber": 7,
+    "film": 2,
+    "fragment": 3
+  },
+  "detections": [
+    {
+      "id": 1,
+      "box": [
+        1454,
+        850,
+        1519,
+        945
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.7787
+      },
+      "efficientnet": {
+        "class_id": 1,
+        "class_name": "film",
+        "confidence": 0.9388,
+        "probabilities": {
+          "fiber": 0.0407,
+          "film": 0.9388,
+          "fragment": 0.0206
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 2,
+      "box": [
+        1025,
+        602,
+        1088,
+        671
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.7379
+      },
+      "efficientnet": {
+        "class_id": 1,
+        "class_name": "film",
+        "confidence": 0.9698,
+        "probabilities": {
+          "fiber": 0.0222,
+          "film": 0.9698,
+          "fragment": 0.008
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 3,
+      "box": [
+        1043,
+        2032,
+        1104,
+        2082
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.737
+      },
+      "efficientnet": {
+        "class_id": 2,
+        "class_name": "fragment",
+        "confidence": 0.9374,
+        "probabilities": {
+          "fiber": 0.0198,
+          "film": 0.0428,
+          "fragment": 0.9374
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 4,
+      "box": [
+        1734,
+        1395,
+        1914,
+        1705
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.7295
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.9471,
+        "probabilities": {
+          "fiber": 0.9471,
+          "film": 0.0176,
+          "fragment": 0.0353
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 5,
+      "box": [
+        1352,
+        924,
+        1651,
+        1366
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.7244
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.953,
+        "probabilities": {
+          "fiber": 0.953,
+          "film": 0.0316,
+          "fragment": 0.0154
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 6,
+      "box": [
+        696,
+        1378,
+        848,
+        1537
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.6864
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.9259,
+        "probabilities": {
+          "fiber": 0.9259,
+          "film": 0.0329,
+          "fragment": 0.0412
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 7,
+      "box": [
+        1741,
+        1110,
+        1781,
+        1150
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.6293
+      },
+      "efficientnet": {
+        "class_id": 2,
+        "class_name": "fragment",
+        "confidence": 0.9687,
+        "probabilities": {
+          "fiber": 0.0131,
+          "film": 0.0182,
+          "fragment": 0.9687
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 8,
+      "box": [
+        850,
+        1617,
+        1104,
+        1786
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.5242
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.9663,
+        "probabilities": {
+          "fiber": 0.9663,
+          "film": 0.0201,
+          "fragment": 0.0135
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 9,
+      "box": [
+        859,
+        513,
+        920,
+        656
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.5148
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.9576,
+        "probabilities": {
+          "fiber": 0.9576,
+          "film": 0.0252,
+          "fragment": 0.0172
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 10,
+      "box": [
+        658,
+        881,
+        915,
+        1007
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.5002
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.927,
+        "probabilities": {
+          "fiber": 0.927,
+          "film": 0.0369,
+          "fragment": 0.0361
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 11,
+      "box": [
+        1168,
+        1494,
+        1238,
+        1537
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.4015
+      },
+      "efficientnet": {
+        "class_id": 2,
+        "class_name": "fragment",
+        "confidence": 0.8892,
+        "probabilities": {
+          "fiber": 0.1015,
+          "film": 0.0092,
+          "fragment": 0.8892
+        }
+      },
+      "classification_changed": false
+    },
+    {
+      "id": 12,
+      "box": [
+        664,
+        2097,
+        702,
+        2164
+      ],
+      "yolo": {
+        "class_id": 0,
+        "class_name": "microplastic",
+        "confidence": 0.3158
+      },
+      "efficientnet": {
+        "class_id": 0,
+        "class_name": "fiber",
+        "confidence": 0.9847,
+        "probabilities": {
+          "fiber": 0.9847,
+          "film": 0.0102,
+          "fragment": 0.0051
+        }
+      },
+      "classification_changed": false
+    }
+  ]
+}

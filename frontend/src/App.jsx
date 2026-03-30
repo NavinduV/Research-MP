@@ -26,6 +26,10 @@ export const useStitchFiles = () => useContext(StitchFilesCtx)
 const UploadFilesCtx = createContext(null)
 export const useUploadFiles = () => useContext(UploadFilesCtx)
 
+// Soil weight context — stores soil weight (g) entered by user, per-mode
+const SoilWeightCtx = createContext(null)
+export const useSoilWeight = () => useContext(SoilWeightCtx)
+
 function Layout({ children, mode, setMode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
@@ -192,6 +196,17 @@ function App() {
   // Shared stitch files state
   const [stitchFiles, setStitchFiles] = useState(null)
 
+  // Soil weight state — persists per mode across navigation
+  const soilWeightRef = useRef({ macro: '', micro: '' })
+  const [soilWeightTick, setSoilWeightTick] = useState(0)
+  const soilWeightValue = {
+    weight: soilWeightRef.current[pipelineMode] || '',
+    setWeight: (val) => {
+      soilWeightRef.current[pipelineMode] = val
+      setSoilWeightTick(t => t + 1)
+    },
+  }
+
   // Upload files state — persists per mode across navigation
   const uploadFilesRef = useRef({ macro: [], micro: [] })
   const [uploadFilesTick, setUploadFilesTick] = useState(0) // force re-render on change
@@ -252,22 +267,24 @@ function App() {
         <PipelineJobCtx.Provider value={pipelineJobValue}>
           <StitchFilesCtx.Provider value={stitchFilesValue}>
             <UploadFilesCtx.Provider value={uploadFilesValue}>
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <PipelineNavigator />
-                <Layout mode={pipelineMode} setMode={setPipelineMode}>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/detect" replace />} />
-                    <Route path="/detect" element={<UploadPage />} />
-                    {pipelineMode === 'macro' && <Route path="/stitch" element={<StitchPage />} />}
-                    <Route path="/history" element={<HistoryPage />} />
-                    {/* Redirect stitch to detect if user switched to micro */}
-                    <Route path="/stitch" element={<Navigate to="/detect" replace />} />
-                    {/* Legacy results route — redirect to history */}
-                    <Route path="/results" element={<Navigate to="/history" replace />} />
-                  </Routes>
-                </Layout>
-                <ToastContainer toasts={toasts} />
-              </BrowserRouter>
+              <SoilWeightCtx.Provider value={soilWeightValue}>
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <PipelineNavigator />
+                  <Layout mode={pipelineMode} setMode={setPipelineMode}>
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/detect" replace />} />
+                      <Route path="/detect" element={<UploadPage />} />
+                      {pipelineMode === 'macro' && <Route path="/stitch" element={<StitchPage />} />}
+                      <Route path="/history" element={<HistoryPage />} />
+                      {/* Redirect stitch to detect if user switched to micro */}
+                      <Route path="/stitch" element={<Navigate to="/detect" replace />} />
+                      {/* Legacy results route — redirect to history */}
+                      <Route path="/results" element={<Navigate to="/history" replace />} />
+                    </Routes>
+                  </Layout>
+                  <ToastContainer toasts={toasts} />
+                </BrowserRouter>
+              </SoilWeightCtx.Provider>
             </UploadFilesCtx.Provider>
           </StitchFilesCtx.Provider>
         </PipelineJobCtx.Provider>

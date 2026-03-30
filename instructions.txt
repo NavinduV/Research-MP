@@ -310,3 +310,34 @@ python src/train/eval_effnet.py --model experiments/macro/efficientnet/efficient
 
 # Evaluate all samples (use when split folders are not available)
 python src/train/eval_effnet.py --model experiments/efficientnet/efficientnet_best.pth --crops-dir data/crops_gt_sam --split all --batch-size 16
+
+
+================================================================================
+WORKING DEMO SCRIPTS (FOR PRESENTATION)
+================================================================================
+
+Use these 3 scripts to show each stage clearly and separately.
+
+1) FILTER ONLY (no YOLO, no EfficientNet, no Mask R-CNN)
+Shows only filter detection and outputs the message style:
+Detected filter: center=(1225, 1261), radius=1132, method=edge-Hough
+
+python src/pipeline/demo_filter_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" 
+
+
+2) YOLO ONLY (MP labels from YOLO)
+Runs only YOLO detection and outputs the model's native class label(s) (for single-class models: microplastic).
+
+python src/pipeline/demo_yolo_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" --yolo-model "experiments/macro/yolo/best.pt"
+
+
+3) YOLO + EFFICIENTNET ONLY (no Mask R-CNN)
+Runs YOLO detection, then EfficientNet classification refinement only.
+
+python src/pipeline/demo_yolo_effnet_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" --yolo-model "experiments/macro/yolo/best.pt" --effnet-model "experiments/macro/efficientnet/efficientnet_best.pth"
+
+
+Default outputs:
+- prediction/demo_filter_only
+- prediction/demo_yolo_only
+- prediction/demo_yolo_effnet_only

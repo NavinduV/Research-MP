@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info, ChevronLeft, ChevronRight, Layers } from 'lucide-react'
-import { useToast, usePipelineMode, usePipelineJob, useStitchFiles, useUploadFiles } from '../App.jsx'
+import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info, ChevronLeft, ChevronRight, Layers, FlaskConical } from 'lucide-react'
+import { useToast, usePipelineMode, usePipelineJob, useStitchFiles, useUploadFiles, useSoilWeight } from '../App.jsx'
 
 const DEFAULTS = {
   yolo_conf: 0.1,
@@ -242,6 +242,7 @@ export default function UploadPage() {
   const stitchCtx = useStitchFiles()
   const navigate = useNavigate()
   const dropZoneRef = useRef()
+  const soilWeightCtx = useSoilWeight()
 
   const set = (key, val) => setCfg(c => ({ ...c, [key]: val }))
 
@@ -264,6 +265,13 @@ export default function UploadPage() {
     if (cfg.effnet_path)   fd.append('effnet_path',   cfg.effnet_path)
 
     // Fire and forget — pipeline runs in background via App context
+    // Save soil weight to sessionStorage for results page
+    if (pipelineMode === 'macro' && soilWeightCtx.weight) {
+      sessionStorage.setItem('mp_soil_weight', soilWeightCtx.weight)
+      fd.append('soil_weight_g', soilWeightCtx.weight)
+    } else {
+      sessionStorage.removeItem('mp_soil_weight')
+    }
     startPipeline(fd)
     setFiles([])
   }
@@ -374,19 +382,91 @@ export default function UploadPage() {
         </div>
       </div>
 
-      {/* Pipeline toggles */}
-      <div className="card">
-        <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-          <Settings size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Pipeline Modules
+      {/* Pipeline toggles + Soil Weight — side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: pipelineMode === 'macro' ? '1fr 1fr' : '1fr', gap: '1.25rem', alignItems: 'start' }}>
+        {/* Pipeline toggles */}
+        <div className="card">
+          <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            <Settings size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Pipeline Modules
+            {/* Pipeline mode indicator */}
+            <span className="badge badge-primary" style={{ marginLeft: 'auto', fontSize: '0.5625rem' }}>
+              {!cfg.use_effnet ? 'YOLO Only' : !cfg.use_maskrcnn ? 'YOLO + EfficientNet' : 'Full Pipeline'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <Toggle
+              checked={cfg.use_effnet}
+              onChange={v => {
+                setCfg(c => ({
+                  ...c,
+                  use_effnet: v,
+                  // Auto-disable Mask R-CNN when EfficientNet is turned off
+                  use_maskrcnn: v ? c.use_maskrcnn : false,
+                }))
+              }}
+              label="EfficientNet Classification"
+              description="Refines YOLO class predictions (fiber / film / fragment)"
+            />
+            <div style={{ opacity: cfg.use_effnet ? 1 : 0.45, transition: 'opacity .2s' }}>
+              <Toggle
+                checked={cfg.use_maskrcnn}
+                onChange={v => {
+                  if (cfg.use_effnet) set('use_maskrcnn', v)
+                }}
+                label="Mask R-CNN Segmentation"
+                description={
+                  cfg.use_effnet
+                    ? 'Precise pixel-level masks for size measurement. Falls back to ellipse if disabled.'
+                    : '⚠ Requires EfficientNet Classification to be enabled first.'
+                }
+              />
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <Toggle checked={cfg.use_effnet} onChange={v => set('use_effnet', v)}
-            label="EfficientNet Classification"
-            description="Refines YOLO class predictions (fiber / film / fragment)" />
-          <Toggle checked={cfg.use_maskrcnn} onChange={v => set('use_maskrcnn', v)}
-            label="Mask R-CNN Segmentation"
-            description="Precise pixel-level masks for size measurement. Falls back to ellipse if disabled." />
-        </div>
+
+        {/* Soil Weight Input — macro mode only */}
+        {pipelineMode === 'macro' && (
+          <div className="card">
+            <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+              <FlaskConical size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /> Soil Sample Weight
+              <InfoTip tip="Enter the weight of the soil sample in grams. Used to estimate particle concentration (particles per kg)." />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ position: 'relative', maxWidth: 280 }}>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="e.g. 250"
+                  min="0.1"
+                  step="any"
+                  value={soilWeightCtx.weight}
+                  onChange={e => soilWeightCtx.setWeight(e.target.value)}
+                  style={{
+                    paddingRight: '2.5rem',
+                    fontFamily: "'JetBrains Mono','Fira Code','Consolas',monospace",
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                  }}
+                />
+                <span style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none',
+                }}>
+                  g
+                </span>
+              </div>
+              <span className="text-xs text-muted">
+                Concentration will be calculated as <strong>particles per kg</strong> in the results.
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action buttons */}

@@ -1001,3 +1001,125 @@ input[type="range"]::-moz-range-thumb {
   border-top: 1px solid var(--surface3);
   margin: 0.75rem 0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Concentration Estimation Cards
+   ═══════════════════════════════════════════════════════════ */
+
+/* Total concentration — hero card */
+.conc-total-card {
+  background: var(--text);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-md);
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.conc-total-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+.conc-total-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+}
+.conc-total-card__value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.03em;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.conc-total-card__unit {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.65;
+  letter-spacing: .01em;
+}
+.conc-total-card__breakdown {
+  font-size: 0.6875rem;
+  opacity: 0.55;
+  margin-top: 0.375rem;
+  font-weight: 400;
+}
+
+/* Per-type concentration grid */
+.conc-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+@media (max-width: 768px) {
+  .conc-type-grid { grid-template-columns: 1fr; }
+}
+
+.conc-type-card {
+  background: var(--surface2);
+  border: 1px solid var(--surface3);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.875rem 1rem;
+  transition: background .15s var(--ease), transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.conc-type-card:hover {
+  background: var(--surface3);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.conc-type-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+.conc-type-card__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.conc-type-card__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.conc-type-card__count {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-weight: 500;
+}
+.conc-type-card__value {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+.conc-type-card__unit {
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: .01em;
+}
+.conc-type-card__formula {
+  margin-top: 0.375rem;
+  font-size: 0.625rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  color: var(--text-muted);
+  opacity: 0.7;
+}

@@ -86,7 +86,7 @@ function Section({ title, icon: Icon, open, onToggle, children }) {
 /* ═══════════════════════════════════════════════════════════════
    KPI DASHBOARD
    ═══════════════════════════════════════════════════════════════ */
-function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, avgLength, unit }) {
+function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, avgLength, unit, hasEffnet, hasMaskrcnn }) {
   return (
     <div className="kpi-grid">
       <div className="kpi-card kpi-card--primary">
@@ -96,7 +96,8 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
           <span className="kpi-card__value">{totalN}</span>
         </div>
       </div>
-      {CLASS_ORDER.map(c => (
+      {/* Per-type counts — only when EfficientNet is enabled */}
+      {hasEffnet && CLASS_ORDER.map(c => (
         <div key={c} className="kpi-card" style={{ borderLeftColor: CLASS_COLORS[c] }}>
           <div className="kpi-card__icon-wrap">
             <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, color: 'var(--text-muted)' }}>{CLASS_ICONS[c]}</span>
@@ -115,29 +116,37 @@ function KpiDashboard({ totalN, counts, avgYoloConf, avgEffConf, reclassified, a
           <span className="kpi-card__value">{fmt(avgYoloConf)}</span>
         </div>
       </div>
-      <div className="kpi-card">
-        <div className="kpi-card__icon-wrap"><ShieldCheck size={14} strokeWidth={1.8} /></div>
-        <div className="kpi-card__body">
-          <span className="kpi-card__label">Avg ENet Conf</span>
-          <span className="kpi-card__value">{fmt(avgEffConf)}</span>
+      {/* EfficientNet metrics — only when enabled */}
+      {hasEffnet && (
+        <>
+          <div className="kpi-card">
+            <div className="kpi-card__icon-wrap"><ShieldCheck size={14} strokeWidth={1.8} /></div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Avg ENet Conf</span>
+              <span className="kpi-card__value">{fmt(avgEffConf)}</span>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-card__icon-wrap"><ArrowRightLeft size={14} strokeWidth={1.8} /></div>
+            <div className="kpi-card__body">
+              <span className="kpi-card__label">Reclassified</span>
+              <span className="kpi-card__value">{reclassified}</span>
+              <span className="kpi-card__sub">{pct(reclassified, totalN)}%</span>
+            </div>
+          </div>
+        </>
+      )}
+      {/* Size metrics — only when Mask R-CNN is enabled (accurate measurements) */}
+      {hasMaskrcnn && (
+        <div className="kpi-card">
+          <div className="kpi-card__icon-wrap"><Ruler size={14} strokeWidth={1.8} /></div>
+          <div className="kpi-card__body">
+            <span className="kpi-card__label">Avg Length</span>
+            <span className="kpi-card__value">{fmt(avgLength)}</span>
+            <span className="kpi-card__sub">{unit}</span>
+          </div>
         </div>
-      </div>
-      <div className="kpi-card">
-        <div className="kpi-card__icon-wrap"><ArrowRightLeft size={14} strokeWidth={1.8} /></div>
-        <div className="kpi-card__body">
-          <span className="kpi-card__label">Reclassified</span>
-          <span className="kpi-card__value">{reclassified}</span>
-          <span className="kpi-card__sub">{pct(reclassified, totalN)}%</span>
-        </div>
-      </div>
-      <div className="kpi-card">
-        <div className="kpi-card__icon-wrap"><Ruler size={14} strokeWidth={1.8} /></div>
-        <div className="kpi-card__body">
-          <span className="kpi-card__label">Avg Length</span>
-          <span className="kpi-card__value">{fmt(avgLength)}</span>
-          <span className="kpi-card__sub">{unit}</span>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -490,11 +499,165 @@ function ConfigPanel({ config }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   CONCENTRATION ESTIMATION (macro mode — particles per kg)
+   ═══════════════════════════════════════════════════════════════ */
+function ConcentrationEstimation({ totalN, counts, soilWeightG, onSoilWeightChange }) {
+  const w = parseFloat(soilWeightG)
+  const hasWeight = !isNaN(w) && w > 0
+
+  // Calculate concentration: (detected / soil_g) × 1000 = particles/kg
+  const calcConc = (n) => hasWeight ? (n / w) * 1000 : null
+
+  const totalConc = calcConc(totalN)
+  const perTypeConc = {}
+  for (const c of CLASS_ORDER) {
+    perTypeConc[c] = calcConc(counts[c] || 0)
+  }
+
+  return (
+    <div>
+      {/* Soil weight input */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '1rem',
+        marginBottom: '1.25rem', padding: '0.875rem 1rem',
+        background: 'var(--surface2)', borderRadius: 'var(--radius)',
+        border: '1px solid var(--surface3)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <FlaskConical size={14} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            Soil Sample Weight
+          </span>
+        </div>
+        <div style={{ position: 'relative', width: 160 }}>
+          <input
+            type="number"
+            className="input"
+            placeholder="e.g. 250"
+            min="0.1"
+            step="any"
+            value={soilWeightG}
+            onChange={e => onSoilWeightChange(e.target.value)}
+            style={{
+              paddingRight: '2rem',
+              fontFamily: "'JetBrains Mono','Fira Code','Consolas',monospace",
+              fontSize: '0.8125rem', fontWeight: 600,
+            }}
+          />
+          <span style={{
+            position: 'absolute', right: '0.625rem', top: '50%',
+            transform: 'translateY(-50%)', fontSize: '0.6875rem',
+            fontWeight: 600, color: 'var(--text-muted)', pointerEvents: 'none',
+          }}>g</span>
+        </div>
+        {hasWeight && (
+          <span className="text-xs text-muted">
+            Formula: (detected ÷ {fmt(w, 1)}g) × 1000 = particles kg⁻¹
+          </span>
+        )}
+      </div>
+
+      {!hasWeight ? (
+        <div style={{
+          textAlign: 'center', padding: '2rem 1rem',
+          color: 'var(--text-muted)', fontSize: '0.8125rem',
+        }}>
+          <FlaskConical size={28} strokeWidth={1.3} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+          <p>Enter the soil sample weight above to calculate concentration estimates.</p>
+        </div>
+      ) : (
+        <>
+          {/* Total concentration KPI */}
+          <div className="conc-total-card">
+            <div className="conc-total-card__header">
+              <Hash size={16} strokeWidth={1.8} />
+              <span>Total Concentration</span>
+            </div>
+            <div className="conc-total-card__value">
+              {fmt(totalConc, 2)}
+              <span className="conc-total-card__unit">particles kg⁻¹</span>
+            </div>
+            <div className="conc-total-card__breakdown">
+              {totalN} particles detected in {fmt(w, 1)}g soil sample
+            </div>
+          </div>
+
+          {/* Per-type concentration grid */}
+          <div className="conc-type-grid">
+            {CLASS_ORDER.map(c => {
+              const n = counts[c] || 0
+              const conc = perTypeConc[c]
+              return (
+                <div key={c} className="conc-type-card" style={{ borderLeftColor: CLASS_COLORS[c] }}>
+                  <div className="conc-type-card__header">
+                    <span className="conc-type-card__swatch" style={{ background: CLASS_COLORS[c] }} />
+                    <span className="conc-type-card__label">{c.charAt(0).toUpperCase() + c.slice(1)}</span>
+                    <span className="conc-type-card__count">{n} detected</span>
+                  </div>
+                  <div className="conc-type-card__value" style={{ color: CLASS_COLORS[c] }}>
+                    {fmt(conc, 2)}
+                    <span className="conc-type-card__unit">particles kg⁻¹</span>
+                  </div>
+                  <div className="conc-type-card__formula">
+                    ({n} ÷ {fmt(w, 1)}) × 1000 = {fmt(conc, 2)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Summary table */}
+          <div style={{ marginTop: '1rem' }}>
+            <div className="morpho-table-wrap">
+              <table className="morpho-table">
+                <thead>
+                  <tr>
+                    <th className="morpho-table__metric-header">Type</th>
+                    <th className="morpho-table__stat-header">Detected</th>
+                    <th className="morpho-table__stat-header">Soil (g)</th>
+                    <th className="morpho-table__stat-header">per gram</th>
+                    <th className="morpho-table__stat-header" style={{ fontWeight: 700 }}>per kg</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="morpho-table__row--even">
+                    <td className="morpho-table__metric-cell" style={{ fontWeight: 700 }}>All Particles</td>
+                    <td className="morpho-table__num" style={{ fontWeight: 700 }}>{totalN}</td>
+                    <td className="morpho-table__num">{fmt(w, 1)}</td>
+                    <td className="morpho-table__num">{fmt(totalN / w, 4)}</td>
+                    <td className="morpho-table__num" style={{ fontWeight: 700, fontSize: '0.875rem' }}>{fmt(totalConc, 2)}</td>
+                  </tr>
+                  {CLASS_ORDER.map(c => {
+                    const n = counts[c] || 0
+                    return (
+                      <tr key={c}>
+                        <td className="morpho-table__metric-cell">
+                          <span className="conc-type-card__swatch" style={{ background: CLASS_COLORS[c], display: 'inline-block', marginRight: 6 }} />
+                          {c.charAt(0).toUpperCase() + c.slice(1)}
+                        </td>
+                        <td className="morpho-table__num">{n}</td>
+                        <td className="morpho-table__num">{fmt(w, 1)}</td>
+                        <td className="morpho-table__num morpho-table__num--muted">{fmt(n / w, 4)}</td>
+                        <td className="morpho-table__num" style={{ fontWeight: 600 }}>{fmt(perTypeConc[c], 2)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
    INLINE RESULTS VIEWER  (expanded from job row)
    ═══════════════════════════════════════════════════════════════ */
 function InlineResults({ result, onClose }) {
   const [sections, setSections] = useState({
-    overview: true, composition: true, charts: true, shape: false,
+    overview: true, concentration: true, composition: true, charts: true, shape: false,
     perClass: false, images: true, morpho: false, detections: false, config: false,
   })
   const toggle = key => setSections(s => ({ ...s, [key]: !s[key] }))
@@ -505,6 +668,10 @@ function InlineResults({ result, onClose }) {
   const allDetections = images.flatMap(im => im.detections || [])
   const totalCounts = CLASS_ORDER.reduce((acc, c) => { acc[c] = allDetections.filter(d => d.final_class === c).length; return acc }, {})
   const totalN = allDetections.length
+
+  // Pipeline variant flags from config
+  const hasEffnet = config.use_effnet !== false
+  const hasMaskrcnn = config.use_maskrcnn !== false
 
   const combinedSummary = (() => {
     const perClass = {}
@@ -531,6 +698,12 @@ function InlineResults({ result, onClose }) {
   const avgYoloConf = totalN ? allDetections.reduce((s, d) => s + d.yolo_confidence, 0) / totalN : 0
   const avgEffConf = totalN ? allDetections.reduce((s, d) => s + d.effnet_confidence, 0) / totalN : 0
   const avgLength = combinedSummary.overall?.length?.mean ?? null
+
+  // Soil weight — read from sessionStorage (saved when pipeline was run)
+  const [soilWeightG, setSoilWeightG] = useState(() => {
+    return sessionStorage.getItem('mp_soil_weight') || ''
+  })
+  const isMacro = (pm || 'macro') === 'macro'
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
@@ -573,45 +746,72 @@ function InlineResults({ result, onClose }) {
       </div>
 
       <Section title="Sample Overview" icon={Activity} open={sections.overview} onToggle={() => toggle('overview')}>
-        <KpiDashboard totalN={totalN} counts={totalCounts} avgYoloConf={avgYoloConf} avgEffConf={avgEffConf} reclassified={reclassified} avgLength={avgLength} unit={unit} />
+        <KpiDashboard totalN={totalN} counts={totalCounts} avgYoloConf={avgYoloConf} avgEffConf={avgEffConf} reclassified={reclassified} avgLength={avgLength} unit={unit} hasEffnet={hasEffnet} hasMaskrcnn={hasMaskrcnn} />
       </Section>
 
-      <Section title="Particle Composition" icon={BarChart2} open={sections.composition} onToggle={() => toggle('composition')}>
-        <div className="grid-2">
-          <CompositionBar counts={totalCounts} total={totalN} />
-          <CountDonut counts={totalCounts} />
-        </div>
-      </Section>
+      {/* Concentration Estimation — macro mode only */}
+      {isMacro && (
+        <Section title="Concentration Estimation" icon={FlaskConical} open={sections.concentration} onToggle={() => toggle('concentration')}>
+          <ConcentrationEstimation
+            totalN={totalN}
+            counts={totalCounts}
+            soilWeightG={soilWeightG}
+            onSoilWeightChange={(v) => {
+              setSoilWeightG(v)
+              if (v) sessionStorage.setItem('mp_soil_weight', v)
+              else sessionStorage.removeItem('mp_soil_weight')
+            }}
+          />
+        </Section>
+      )}
 
-      <Section title="Size Distribution" icon={BarChart2} open={sections.charts} onToggle={() => toggle('charts')}>
-        <div className="grid-2">
-          <LengthHistogram histogram={histogram} />
-          <ConfidenceBars detections={allDetections} />
-        </div>
-      </Section>
+      {/* Particle Composition — only when EfficientNet provides type classification */}
+      {hasEffnet && (
+        <Section title="Particle Composition" icon={BarChart2} open={sections.composition} onToggle={() => toggle('composition')}>
+          <div className="grid-2">
+            <CompositionBar counts={totalCounts} total={totalN} />
+            <CountDonut counts={totalCounts} />
+          </div>
+        </Section>
+      )}
 
-      <Section title="Per-Class Morphometry" icon={BarChart2} open={sections.perClass} onToggle={() => toggle('perClass')}>
-        <div className="grid-3">
-          {[{ key: 'length', label: `Mean Length (${unit})` }, { key: 'area', label: `Mean Area (${unit}²)` }, { key: 'circularity', label: 'Mean Circularity' }].map(({ key, label }) => (
-            <div key={key} className="chart-panel">
-              <h3 className="chart-panel__title">{label}</h3>
-              <PerClassBars perClass={perClass} metric={key} unit={key === 'circularity' ? '' : unit} />
+      {/* Size & morphometry sections — only when Mask R-CNN provides accurate masks */}
+      {hasMaskrcnn && (
+        <>
+          <Section title="Size Distribution" icon={BarChart2} open={sections.charts} onToggle={() => toggle('charts')}>
+            <div className="grid-2">
+              <LengthHistogram histogram={histogram} />
+              <ConfidenceBars detections={allDetections} />
             </div>
-          ))}
-        </div>
-      </Section>
+          </Section>
 
-      <Section title="Shape Analysis" icon={Activity} open={sections.shape} onToggle={() => toggle('shape')}>
-        <LengthCircScatter detections={allDetections} pixelToMicron={pixelToMicron} />
-      </Section>
+          <Section title="Per-Class Morphometry" icon={BarChart2} open={sections.perClass} onToggle={() => toggle('perClass')}>
+            <div className="grid-3">
+              {[{ key: 'length', label: `Mean Length (${unit})` }, { key: 'area', label: `Mean Area (${unit}²)` }, { key: 'circularity', label: 'Mean Circularity' }].map(({ key, label }) => (
+                <div key={key} className="chart-panel">
+                  <h3 className="chart-panel__title">{label}</h3>
+                  <PerClassBars perClass={perClass} metric={key} unit={key === 'circularity' ? '' : unit} />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Shape Analysis" icon={Activity} open={sections.shape} onToggle={() => toggle('shape')}>
+            <LengthCircScatter detections={allDetections} pixelToMicron={pixelToMicron} />
+          </Section>
+        </>
+      )}
 
       <Section title="Microscopy Visualisations" icon={ImageIcon} open={sections.images} onToggle={() => toggle('images')}>
         {job_id && images.length > 0 && <ImageViewer jobId={job_id} images={images} />}
       </Section>
 
-      <Section title="Detailed Morphometric Statistics" icon={FileText} open={sections.morpho} onToggle={() => toggle('morpho')}>
-        <MorphometricTable perClass={perClass} unit={unit} />
-      </Section>
+      {/* Morphometric table — only when Mask R-CNN provides size data */}
+      {hasMaskrcnn && (
+        <Section title="Detailed Morphometric Statistics" icon={FileText} open={sections.morpho} onToggle={() => toggle('morpho')}>
+          <MorphometricTable perClass={perClass} unit={unit} />
+        </Section>
+      )}
 
       <Section title="Individual Detections" icon={FileText} open={sections.detections} onToggle={() => toggle('detections')}>
         {allDetections.length > 0 && <DetectionTable detections={allDetections} pixelToMicron={pixelToMicron} />}

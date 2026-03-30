@@ -347,6 +347,19 @@ async def detect(
     if pipeline_mode not in ("macro", "micro"):
         pipeline_mode = "macro"
 
+    # Enforce toggle dependency: Mask R-CNN requires EfficientNet
+    if not use_effnet:
+        use_maskrcnn = False
+
+    # Log effective pipeline variant
+    if use_effnet and use_maskrcnn:
+        _variant = "Full Pipeline (YOLO + EfficientNet + Mask R-CNN)"
+    elif use_effnet:
+        _variant = "YOLO + EfficientNet (no Mask R-CNN)"
+    else:
+        _variant = "YOLO Only"
+    print(f"[Pipeline] Mode={pipeline_mode}, Variant={_variant}")
+
     # Choose micro-specific per-type loader when in micro mode
     load_per_type_fn = load_per_type_maskrcnn
     if pipeline_mode == "micro":
@@ -491,8 +504,10 @@ async def detect(
                     final_class_id = effnet_class_id
                     classification_source = "effnet"
                 else:
-                    final_class_name = yolo_class_name
-                    final_class_id = yolo_class_id
+                    # Without EfficientNet, label all detections as generic "microplastic"
+                    # because YOLO's type classification is not reliable on its own
+                    final_class_name = "microplastic"
+                    final_class_id = -1
                     effnet_conf = 0.0
                     effnet_probs = None
                     classification_source = "yolo"
@@ -545,7 +560,8 @@ async def detect(
 
             # Save visualization
             vis = _create_visualization(image, results_list, mask_overlay, pixel_to_micron,
-                                        filter_circle=filter_circle)
+                                        filter_circle=filter_circle,
+                                        use_maskrcnn=use_maskrcnn)
             vis_path = job_dir / f"vis_{file_idx}.jpg"
             cv2.imwrite(str(vis_path), vis, [cv2.IMWRITE_JPEG_QUALITY, 90])
 
