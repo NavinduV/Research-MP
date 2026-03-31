@@ -70,17 +70,25 @@ YOLO_TO_MASKRCNN_CLASS = {0: 1, 1: 2, 2: 3}  # fiber=0->1, film=1->2, fragment=2
 MASKRCNN_TO_CLASS_NAME = {1: 'fiber', 2: 'film', 3: 'fragment'}
 
 # Default per-type model path candidates (new macro layout first, legacy layout second)
+# NOTE: train_maskrcnn_per_type.py saves weights as "maskrcnn_best.pth" (generic name),
+# so the correct filename is maskrcnn_best.pth — NOT maskrcnn_{type}_best.pth.
 PER_TYPE_MODEL_CANDIDATES = {
     'fiber': [
+        'experiments/macro/maskrcnn_fiber/maskrcnn_best.pth',
         'experiments/macro/maskrcnn_fiber/maskrcnn_fiber_best.pth',
+        'experiments/maskrcnn_fiber/maskrcnn_best.pth',
         'experiments/maskrcnn_fiber/maskrcnn_fiber_best.pth',
     ],
     'film': [
+        'experiments/macro/maskrcnn_film/maskrcnn_best.pth',
         'experiments/macro/maskrcnn_film/maskrcnn_film_best.pth',
+        'experiments/maskrcnn_film/maskrcnn_best.pth',
         'experiments/maskrcnn_film/maskrcnn_film_best.pth',
     ],
     'fragment': [
+        'experiments/macro/maskrcnn_fragment/maskrcnn_best.pth',
         'experiments/macro/maskrcnn_fragment/maskrcnn_fragment_best.pth',
+        'experiments/maskrcnn_fragment/maskrcnn_best.pth',
         'experiments/maskrcnn_fragment/maskrcnn_fragment_best.pth',
     ],
 }
@@ -254,10 +262,15 @@ def get_effnet_transform():
 
 
 def get_maskrcnn_transform():
-    """Mask R-CNN preprocessing transform for crops."""
+    """Mask R-CNN preprocessing transform for crops.
+
+    IMPORTANT: Must match the training transform in train_maskrcnn_per_type.py
+    which uses A.Resize(CROP_SIZE, CROP_SIZE) with CROP_SIZE=128.
+    Using a different resize strategy (e.g. LongestMaxSize+Pad) causes the
+    model to produce degraded, oval-shaped masks instead of precise contours.
+    """
     return A.Compose([
-        A.LongestMaxSize(max_size=256),
-        A.PadIfNeeded(min_height=256, min_width=256, border_mode=0, fill=0),
+        A.Resize(128, 128),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2()
     ])
@@ -371,6 +384,48 @@ def classify_crop(effnet_model, crop_bgr: np.ndarray, device: torch.device, tran
 # Segmentation Stage (Mask R-CNN)
 # ============================================================================
 
+def _refine_mask(mask_binary: np.ndarray, crop_shape: tuple) -> np.ndarray:
+    """Apply morphological refinement to produce clean, contour-following masks.
+
+    Steps:
+        1. Close small gaps in the mask (morphological closing)
+        2. Remove small noise blobs
+        3. Keep only the largest connected component
+        4. Smooth jagged edges with a small Gaussian blur + re-threshold
+    """
+    h, w = crop_shape[:2]
+
+    # Scale kernel size relative to the mask dimensions (at least 3)
+    ksize = max(3, min(h, w) // 30)
+    if ksize % 2 == 0:
+        ksize += 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+
+    # Close small holes / gaps
+    refined = cv2.morphologyEx(mask_binary, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    # Open to remove small noise specks
+    refined = cv2.morphologyEx(refined, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    # Keep only the largest connected component
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(refined, connectivity=8)
+    if num_labels > 1:
+        # Component 0 is background, find largest foreground component
+        areas = stats[1:, cv2.CC_STAT_AREA]  # skip background
+        largest_label = 1 + int(np.argmax(areas))
+        refined = (labels == largest_label).astype(np.uint8)
+
+    # Smooth jagged edges: blur + re-threshold
+    smooth_ksize = max(3, min(h, w) // 20)
+    if smooth_ksize % 2 == 0:
+        smooth_ksize += 1
+    smoothed = cv2.GaussianBlur(refined.astype(np.float32),
+                                 (smooth_ksize, smooth_ksize), 0)
+    refined = (smoothed > 0.4).astype(np.uint8)
+
+    return refined
+
+
 def segment_crop(maskrcnn_model, crop_bgr: np.ndarray, class_id: int, device: torch.device,
                  transform, mask_threshold: float = 0.5):
     """
@@ -382,14 +437,18 @@ def segment_crop(maskrcnn_model, crop_bgr: np.ndarray, class_id: int, device: to
 
     Strategy:
         1. Run Mask R-CNN on the crop
-        2. Merge ALL predicted masks into one combined foreground mask
+        2. Merge high-confidence masks into one combined foreground mask
            (class-agnostic — we already know the class from EfficientNet)
-        3. If Mask R-CNN finds nothing, fall back to an ellipse mask
+        3. Resize the SOFT probability map first, THEN binarize (preserves
+           contour detail that would be lost by binarize-then-resize)
+        4. Apply morphological refinement for clean contour-following masks
+        5. If Mask R-CNN finds nothing, fall back to an ellipse mask
 
     Returns:
         mask: Binary mask for the crop (H, W)
         confidence: Best mask confidence score (for metadata only)
     """
+    crop_h, crop_w = crop_bgr.shape[:2]
     crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
     transformed = transform(image=crop_rgb)
     input_tensor = transformed['image'].unsqueeze(0).to(device)
@@ -397,36 +456,63 @@ def segment_crop(maskrcnn_model, crop_bgr: np.ndarray, class_id: int, device: to
     with torch.no_grad():
         predictions = maskrcnn_model(input_tensor)[0]
 
-    masks = predictions['masks'].cpu().numpy()
-    scores = predictions['scores'].cpu().numpy()
+    masks = predictions['masks'].cpu().numpy()   # (N, 1, H_model, W_model) float
+    scores = predictions['scores'].cpu().numpy()  # (N,)
 
     # ---- Class-agnostic mask merging ----
     # We trust YOLO+EfficientNet for classification.
-    # From Mask R-CNN we only want the best foreground mask(s).
+    # From Mask R-CNN we only want foreground mask(s).
+    #
+    # Merge all masks with score >= 0.3 (weighted by score) so that
+    # multiple overlapping predictions combine into better coverage.
+    # Then use the best score as the reported confidence.
+    MIN_MERGE_SCORE = 0.3
+
+    combined_soft = None
+    best_score = 0.0
+
     if len(masks) > 0:
-        # Take the single highest-confidence mask (regardless of class)
-        best_idx = int(np.argmax(scores))
-        best_mask = masks[best_idx][0]
-        best_score = float(scores[best_idx])
-    else:
-        best_mask = None
-        best_score = 0.0
+        best_score = float(scores.max())
+        # Filter to masks above the merge threshold
+        good_idxs = np.where(scores >= MIN_MERGE_SCORE)[0]
+        if len(good_idxs) > 0:
+            # Weighted merge: combine soft masks weighted by their scores
+            combined_soft = np.zeros_like(masks[0][0], dtype=np.float32)
+            total_weight = 0.0
+            for idx in good_idxs:
+                w_score = float(scores[idx])
+                combined_soft += masks[idx][0] * w_score
+                total_weight += w_score
+            combined_soft /= max(total_weight, 1e-6)
 
-    # Fallback: ellipse mask when Mask R-CNN produces nothing
-    if best_mask is None:
-        ch, cw = crop_bgr.shape[:2]
-        best_mask = np.zeros((ch, cw), dtype=np.float32)
-        center = (cw // 2, ch // 2)
-        axes = (max(1, cw // 2 - 2), max(1, ch // 2 - 2))
-        cv2.ellipse(best_mask, center, axes, 0, 0, 360, 1.0, -1)
+    # Fallback: ellipse mask when Mask R-CNN produces nothing useful
+    if combined_soft is None or combined_soft.max() < 0.1:
+        combined_soft = np.zeros((crop_h, crop_w), dtype=np.float32)
+        center = (crop_w // 2, crop_h // 2)
+        axes = (max(1, crop_w // 2 - 2), max(1, crop_h // 2 - 2))
+        cv2.ellipse(combined_soft, center, axes, 0, 0, 360, 1.0, -1)
         best_score = 0.5
+        # Binarize directly (already at crop size)
+        mask_final = (combined_soft > mask_threshold).astype(np.uint8)
+        return mask_final, best_score
 
-    # Binarize and resize to crop size
-    mask_binary = (best_mask > mask_threshold).astype(np.uint8)
-    mask_resized = cv2.resize(mask_binary, (crop_bgr.shape[1], crop_bgr.shape[0]),
-                               interpolation=cv2.INTER_NEAREST)
+    # ---- Resize SOFT mask to crop dimensions BEFORE binarizing ----
+    # This preserves contour detail that would be destroyed by
+    # binarize → INTER_NEAREST resize (which produced blocky/oval masks).
+    soft_resized = cv2.resize(combined_soft, (crop_w, crop_h),
+                               interpolation=cv2.INTER_LINEAR)
 
-    return mask_resized, best_score
+    # Binarize the high-resolution soft mask
+    mask_binary = (soft_resized > mask_threshold).astype(np.uint8)
+
+    # ---- Morphological refinement ----
+    mask_refined = _refine_mask(mask_binary, crop_bgr.shape)
+
+    # Sanity: if refinement wiped the mask, fall back to the raw binary
+    if mask_refined.sum() < 10:
+        mask_refined = mask_binary
+
+    return mask_refined, best_score
 
 
 def generate_ellipse_mask(box: list, image_shape: tuple):

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen, Images, Zap, Sparkles, Send, Trash2, ChevronDown, ChevronUp,
   SlidersHorizontal, RotateCcw, CheckCircle2, AlertTriangle, Loader2,
-  ImagePlus, ArrowRight, Info, Eye, Download, Layers
+  ImagePlus, ArrowRight, Info, Eye, Download, Layers, UploadCloud, X,
+  MousePointerClick, FolderSearch, ChevronLeft, ChevronRight, ToggleLeft, ToggleRight
 } from 'lucide-react'
 import {
   analyzeFolder, thumbnailUrl, runStitch, stitchPreviewUrl,
@@ -15,10 +16,11 @@ import { useToast, useStitchFiles } from '../App.jsx'
 
 /* ── tiny helpers ────────────────────────────────── */
 const STEPS = ['folder', 'select', 'result', 'enhance']
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp', '.webp']
 
 function StepIndicator({ current }) {
-  const labels = ['Input Folder', 'Select Images', 'Stitch Result', 'Enhance']
-  const icons  = [<FolderOpen size={13} strokeWidth={1.8}/>, <Images size={13} strokeWidth={1.8}/>, <Layers size={13} strokeWidth={1.8}/>, <Sparkles size={13} strokeWidth={1.8}/>]
+  const labels = ['Input', 'Select Images', 'Stitch Result', 'Enhance']
+  const icons  = [<UploadCloud size={13} strokeWidth={1.8}/>, <Images size={13} strokeWidth={1.8}/>, <Layers size={13} strokeWidth={1.8}/>, <Sparkles size={13} strokeWidth={1.8}/>]
   return (
     <div style={{ display:'flex', gap:'0.25rem', marginBottom:'1.25rem' }}>
       {STEPS.map((s, i) => {
@@ -45,37 +47,472 @@ function StepIndicator({ current }) {
   )
 }
 
-/* ── STEP 1 : Folder Input ───────────────────────── */
-function FolderStep({ folder, setFolder, onAnalyze, loading }) {
+/* ── Image Preview Carousel ───────────────────────── */
+function ImagePreviewCarousel({ files, onRemove }) {
+  const [scrollIdx, setScrollIdx] = useState(0)
+  const VISIBLE = 4
+
+  if (files.length === 0) return null
+
+  const canLeft = scrollIdx > 0
+  const canRight = scrollIdx + VISIBLE < files.length
+  const visibleFiles = files.slice(scrollIdx, scrollIdx + VISIBLE)
+
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {files.length > VISIBLE && (
+          <button
+            onClick={() => setScrollIdx(i => Math.max(0, i - 1))}
+            disabled={!canLeft}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: canLeft ? 'var(--surface)' : 'var(--surface2)',
+              color: canLeft ? 'var(--text)' : 'var(--text-muted)',
+              cursor: canLeft ? 'pointer' : 'default',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: canLeft ? 1 : 0.3, flexShrink: 0,
+            }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+        )}
+
+        <div style={{ display: 'flex', gap: '0.5rem', flex: 1, overflow: 'hidden' }}>
+          {visibleFiles.map((f, vi) => {
+            const realIdx = scrollIdx + vi
+            const url = URL.createObjectURL(f)
+            return (
+              <div key={realIdx} style={{
+                flex: '1 1 0', minWidth: 0, position: 'relative',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                overflow: 'hidden', background: 'var(--surface2)',
+              }}>
+                <img
+                  src={url}
+                  alt={f.name}
+                  style={{ width: '100%', height: 90, objectFit: 'cover', display: 'block' }}
+                  onLoad={() => URL.revokeObjectURL(url)}
+                />
+                <div style={{
+                  padding: '0.25rem 0.375rem', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: '0.25rem',
+                }}>
+                  <span className="truncate" style={{ fontSize: '0.625rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    {f.name}
+                  </span>
+                  <button
+                    onClick={() => onRemove(realIdx)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '2px', display: 'flex',
+                      alignItems: 'center', flexShrink: 0,
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {files.length > VISIBLE && (
+          <button
+            onClick={() => setScrollIdx(i => Math.min(files.length - VISIBLE, i + 1))}
+            disabled={!canRight}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: canRight ? 'var(--surface)' : 'var(--surface2)',
+              color: canRight ? 'var(--text)' : 'var(--text-muted)',
+              cursor: canRight ? 'pointer' : 'default',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: canRight ? 1 : 0.3, flexShrink: 0,
+            }}
+          >
+            <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+
+      {files.length > VISIBLE && (
+        <div style={{ textAlign: 'center', marginTop: '0.375rem' }}>
+          <span className="text-xs text-muted">
+            Showing {scrollIdx + 1}–{Math.min(scrollIdx + VISIBLE, files.length)} of {files.length}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+/* ── STEP 1 : Folder Input — Revamped ─────────────── */
+function FolderStep({ folder, setFolder, onAnalyze, onUploadFiles, loading, autoSelect, setAutoSelect }) {
+  const [inputMethod, setInputMethod] = useState('drag')  // 'drag' | 'path' | 'browse'
+  const [dragOver, setDragOver] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState([])
+  const fileInputRef = useRef()
+  const folderInputRef = useRef()
+
+  const isImage = (name) => {
+    const ext = '.' + name.split('.').pop().toLowerCase()
+    return IMAGE_EXTS.includes(ext)
+  }
+
+  /* Handle drag & drop — files or folders */
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault()
+    setDragOver(false)
+
+    const items = e.dataTransfer.items
+    const files = e.dataTransfer.files
+
+    // Check if a folder was dropped (using DataTransferItem API)
+    if (items && items.length > 0) {
+      const firstItem = items[0]
+      if (firstItem.webkitGetAsEntry) {
+        const entry = firstItem.webkitGetAsEntry()
+        if (entry && entry.isDirectory) {
+          // Folder dropped — read all image files from it
+          const folderFiles = []
+          const readEntries = (dirEntry) => {
+            return new Promise((resolve) => {
+              const reader = dirEntry.createReader()
+              const allEntries = []
+              const readBatch = () => {
+                reader.readEntries((entries) => {
+                  if (entries.length === 0) {
+                    resolve(allEntries)
+                  } else {
+                    allEntries.push(...entries)
+                    readBatch()
+                  }
+                })
+              }
+              readBatch()
+            })
+          }
+          const entryToFile = (fileEntry) => {
+            return new Promise((resolve) => {
+              fileEntry.file((f) => resolve(f))
+            })
+          }
+          const entries = await readEntries(entry)
+          for (const e of entries) {
+            if (e.isFile && isImage(e.name)) {
+              const file = await entryToFile(e)
+              folderFiles.push(file)
+            }
+          }
+          if (folderFiles.length > 0) {
+            setDroppedFiles(folderFiles)
+          }
+          return
+        }
+      }
+    }
+
+    // Regular file drop
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/') || isImage(f.name))
+    if (imageFiles.length > 0) {
+      setDroppedFiles(prev => [...prev, ...imageFiles])
+    }
+  }, [])
+
+  const handleFileSelect = (e) => {
+    const selected = Array.from(e.target.files).filter(f => f.type.startsWith('image/') || isImage(f.name))
+    if (selected.length > 0) {
+      setDroppedFiles(prev => [...prev, ...selected])
+    }
+  }
+
+  const removeFile = (idx) => {
+    setDroppedFiles(prev => prev.filter((_, j) => j !== idx))
+  }
+
+  const handleUploadDropped = () => {
+    if (droppedFiles.length > 0) {
+      onUploadFiles(droppedFiles)
+    }
+  }
+
+  const handleBrowseFolder = () => {
+    folderInputRef.current?.click()
+  }
+
+  const handleFolderBrowse = (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length > 0) {
+      // Extract the common folder path from the webkitRelativePath
+      const first = files[0]
+      if (first.webkitRelativePath) {
+        const parts = first.webkitRelativePath.split('/')
+        if (parts.length > 1) {
+          // The first part is the folder name — we'll upload the files
+          const imageFiles = files.filter(f => f.type.startsWith('image/') || isImage(f.name))
+          if (imageFiles.length > 0) {
+            setDroppedFiles(imageFiles)
+            setInputMethod('drag')
+          }
+        }
+      }
+    }
+  }
+
+  const methods = [
+    { id: 'drag', icon: <UploadCloud size={13} strokeWidth={1.8} />, label: 'Drag & Drop' },
+    { id: 'path', icon: <FolderSearch size={13} strokeWidth={1.8} />, label: 'Folder Path' },
+    { id: 'browse', icon: <FolderOpen size={13} strokeWidth={1.8} />, label: 'Browse' },
+  ]
+
   return (
     <div className="card" style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div style={{ fontWeight:600, display:'flex', alignItems:'center', gap:'0.5rem', fontSize:'0.8125rem', color:'var(--text-secondary)' }}>
-        <FolderOpen size={15} strokeWidth={1.8} style={{ color:'var(--text-muted)' }} /> Input Folder
+      {/* Header + Auto/Manual toggle */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
+        <div style={{ fontWeight:600, display:'flex', alignItems:'center', gap:'0.5rem', fontSize:'0.8125rem', color:'var(--text-secondary)' }}>
+          <UploadCloud size={15} strokeWidth={1.8} style={{ color:'var(--text-muted)' }} /> Input Images
+        </div>
+
+        {/* Auto / Manual selection toggle */}
+        <div style={{
+          display:'flex', alignItems:'center', gap:'0.5rem',
+          background:'var(--surface2)', padding:'4px 10px', borderRadius:'var(--radius-sm)',
+          border:'1px solid var(--border)',
+        }}>
+          <span style={{ fontSize:'0.6875rem', fontWeight:500, color:'var(--text-muted)' }}>Selection:</span>
+          <button
+            onClick={() => setAutoSelect(!autoSelect)}
+            style={{
+              display:'flex', alignItems:'center', gap:'0.35rem',
+              padding:'3px 8px', borderRadius:'calc(var(--radius-sm) - 2px)',
+              fontSize:'0.6875rem', fontWeight:600, letterSpacing:'.02em',
+              background: autoSelect ? 'var(--text)' : 'transparent',
+              color: autoSelect ? '#fff' : 'var(--text-secondary)',
+              border:'none', cursor:'pointer', transition:'all .15s',
+            }}
+          >
+            {autoSelect ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+            {autoSelect ? 'Auto' : 'Manual'}
+          </button>
+          <span className="text-xs text-muted" style={{ maxWidth:200 }}>
+            {autoSelect ? 'All images selected automatically' : 'Manually pick images'}
+          </span>
+        </div>
       </div>
-      <p className="text-sm text-muted" style={{ margin:0 }}>
-        Point to a folder containing overlapping partial filter paper images captured with the macro lens.
-      </p>
-      <div style={{ display:'flex', gap:'0.75rem' }}>
-        <input
-          type="text" value={folder}
-          onChange={e => setFolder(e.target.value)}
-          placeholder="e.g.  datasets/raw/Sample1/Macro"
-          className="input"
-          style={{ flex:1 }}
-          onKeyDown={e => e.key === 'Enter' && folder.trim() && onAnalyze()}
-        />
-        <button
-          className="btn btn-primary"
-          disabled={!folder.trim() || loading}
-          onClick={onAnalyze}
-          style={{ whiteSpace:'nowrap' }}
-        >
-          {loading ? <><Loader2 size={14} className="spin" /> Scanning…</> : <><Eye size={14} strokeWidth={1.8} /> Analyze</>}
-        </button>
+
+      {/* Input Method Pill Bar */}
+      <div style={{ display:'flex', gap:'0.125rem', background:'var(--surface2)', borderRadius:'var(--radius)', padding:'0.1875rem', border:'1px solid var(--border)' }}>
+        {methods.map(m => (
+          <button
+            key={m.id}
+            onClick={() => setInputMethod(m.id)}
+            style={{
+              flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.375rem',
+              fontSize:'0.75rem', fontWeight: inputMethod === m.id ? 600 : 500,
+              padding:'0.3rem 0.75rem', borderRadius:'var(--radius-sm)',
+              color: inputMethod === m.id ? 'var(--text)' : 'var(--text-muted)',
+              background: inputMethod === m.id ? 'var(--surface)' : 'transparent',
+              border:'none', cursor:'pointer', transition:'all .15s',
+              boxShadow: inputMethod === m.id ? 'var(--shadow-sm)' : 'none',
+            }}
+          >
+            {m.icon} {m.label}
+          </button>
+        ))}
       </div>
+
+      {/* --- METHOD: Drag & Drop ---- */}
+      {inputMethod === 'drag' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+          {/* Hidden inputs */}
+          <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handleFileSelect} />
+          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple hidden onChange={handleFolderBrowse} />
+
+          {/* Drop zone */}
+          {droppedFiles.length === 0 ? (
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragOver ? 'var(--text)' : 'var(--border-strong)'}`,
+                borderRadius: 'var(--radius)',
+                padding: '2.5rem 2rem',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: dragOver ? 'var(--surface)' : 'var(--surface2)',
+                transition: 'all .2s',
+                position: 'relative',
+              }}
+            >
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:'0.75rem' }}>
+                <div style={{
+                  width:48, height:48, borderRadius:'var(--radius)',
+                  background: dragOver ? 'var(--text)' : 'var(--surface)',
+                  border: `1px solid ${dragOver ? 'var(--text)' : 'var(--border)'}`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  transition: 'all .2s',
+                  color: dragOver ? '#fff' : 'var(--text-muted)',
+                }}>
+                  <UploadCloud size={22} strokeWidth={1.5} />
+                </div>
+              </div>
+              <p style={{ fontWeight:600, marginBottom:4, fontSize:'0.8125rem', color: dragOver ? 'var(--text)' : 'var(--text-secondary)' }}>
+                Drop images or folders here
+              </p>
+              <p className="text-xs text-muted" style={{ margin:0 }}>
+                Drag individual images, multiple files, or an entire folder
+              </p>
+              <p className="text-xs text-muted" style={{ marginTop:4, opacity:0.7 }}>
+                PNG, JPG, TIFF, BMP, WebP supported
+              </p>
+
+              {/* Click to browse sub-actions */}
+              <div style={{ display:'flex', justifyContent:'center', gap:'0.5rem', marginTop:'1rem' }}>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+                  style={{ fontSize:'0.6875rem' }}
+                >
+                  <ImagePlus size={12} strokeWidth={1.8} /> Browse Images
+                </button>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click() }}
+                  style={{ fontSize:'0.6875rem' }}
+                >
+                  <FolderOpen size={12} strokeWidth={1.8} /> Browse Folder
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              style={{
+                outline: dragOver ? '2px dashed var(--text-secondary)' : 'none',
+                borderRadius: 'var(--radius)',
+                outlineOffset: -2,
+              }}
+            >
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.5rem' }}>
+                <span style={{ fontSize:'0.75rem', fontWeight:600, color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'0.375rem' }}>
+                  <Images size={13} strokeWidth={1.8} style={{ color:'var(--text-muted)' }} />
+                  {droppedFiles.length} image{droppedFiles.length !== 1 ? 's' : ''} ready
+                </span>
+                <div style={{ display:'flex', gap:'0.375rem' }}>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ fontSize:'0.6875rem' }}
+                  >
+                    <UploadCloud size={12} strokeWidth={1.8} /> Add More
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setDroppedFiles([])}
+                    style={{ fontSize:'0.6875rem', color:'#991b1b' }}
+                  >
+                    <Trash2 size={12} strokeWidth={1.8} /> Clear All
+                  </button>
+                </div>
+              </div>
+              <ImagePreviewCarousel files={droppedFiles} onRemove={removeFile} />
+            </div>
+          )}
+
+          {/* Analyze button for dropped files */}
+          {droppedFiles.length > 0 && (
+            <button
+              className="btn btn-primary"
+              disabled={loading}
+              onClick={handleUploadDropped}
+              style={{ alignSelf:'stretch' }}
+            >
+              {loading ? <><Loader2 size={14} className="spin" /> Uploading & Analyzing…</> : <><Eye size={14} strokeWidth={1.8} /> Upload & Analyze {droppedFiles.length} Images</>}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* --- METHOD: Folder Path ---- */}
+      {inputMethod === 'path' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+          <p className="text-sm text-muted" style={{ margin:0 }}>
+            Enter the full path to a folder containing overlapping partial filter paper images.
+          </p>
+          <div style={{ display:'flex', gap:'0.75rem' }}>
+            <input
+              type="text" value={folder}
+              onChange={e => setFolder(e.target.value)}
+              placeholder="e.g.  D:\datasets\raw\Sample1\Macro"
+              className="input"
+              style={{ flex:1, fontFamily:"'JetBrains Mono','Fira Code','Consolas',monospace", fontSize:'0.75rem' }}
+              onKeyDown={e => e.key === 'Enter' && folder.trim() && onAnalyze()}
+            />
+            <button
+              className="btn btn-primary"
+              disabled={!folder.trim() || loading}
+              onClick={onAnalyze}
+              style={{ whiteSpace:'nowrap' }}
+            >
+              {loading ? <><Loader2 size={14} className="spin" /> Scanning…</> : <><Eye size={14} strokeWidth={1.8} /> Analyze</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- METHOD: Browse ---- */}
+      {inputMethod === 'browse' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple hidden onChange={handleFolderBrowse} />
+
+          <p className="text-sm text-muted" style={{ margin:0 }}>
+            Use your system's file browser to select a folder containing the images to stitch.
+          </p>
+
+          <div style={{ display:'flex', gap:'0.75rem', alignItems:'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleBrowseFolder}
+              style={{ whiteSpace:'nowrap' }}
+            >
+              <FolderOpen size={14} strokeWidth={1.8} /> Select Folder
+            </button>
+            {droppedFiles.length > 0 && (
+              <span style={{ fontSize:'0.75rem', fontWeight:500, color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'0.375rem' }}>
+                <CheckCircle2 size={13} strokeWidth={1.8} style={{ color:'var(--success)' }} />
+                {droppedFiles.length} images found
+              </span>
+            )}
+          </div>
+
+          {droppedFiles.length > 0 && (
+            <>
+              <ImagePreviewCarousel files={droppedFiles} onRemove={removeFile} />
+              <button
+                className="btn btn-primary"
+                disabled={loading}
+                onClick={handleUploadDropped}
+                style={{ alignSelf:'stretch' }}
+              >
+                {loading ? <><Loader2 size={14} className="spin" /> Uploading & Analyzing…</> : <><Eye size={14} strokeWidth={1.8} /> Upload & Analyze {droppedFiles.length} Images</>}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Info tip */}
       <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'0.75rem 1rem', fontSize:'0.75rem', color:'var(--text-muted)', display:'flex', gap:'0.5rem', alignItems:'flex-start' }}>
         <Info size={13} strokeWidth={1.8} style={{ marginTop:2, flexShrink:0 }} />
-        <span>Images will be grouped by brightness so you can select the best-matching set for stitching.</span>
+        <span>
+          Images will be grouped by brightness so you can select the best-matching set for stitching.
+          {autoSelect && <strong> Auto mode will pre-select all images for you.</strong>}
+        </span>
       </div>
     </div>
   )
@@ -174,7 +611,7 @@ function SelectStep({ groups, folder, selected, setSelected, onStitch, loading, 
         {/* Selection + action row */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ display:'flex', gap:'0.75rem', alignItems:'center' }}>
-            <button className="btn btn-ghost" onClick={onBack}>&larr; Change folder</button>
+            <button className="btn btn-ghost" onClick={onBack}>&larr; Change input</button>
             <span className="text-sm" style={{ fontWeight:500 }}>
               {selected.length} image{selected.length !== 1 && 's'} selected
               {!canStitch && <span className="text-muted"> (need {minNeeded - selected.length} more)</span>}
@@ -364,6 +801,7 @@ export default function StitchPage() {
   const [loading, setLoading] = useState(false)
   const [stitchResult, setStitchResult] = useState(null)
   const [sendLoading, setSendLoading] = useState(false)
+  const [autoSelect, setAutoSelect] = useState(true)
 
   const toast = useToast()
   const navigate = useNavigate()
@@ -392,14 +830,42 @@ export default function StitchPage() {
     process()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Analyze folder */
+  /* Analyze folder (path mode) */
   const handleAnalyze = async () => {
     setLoading(true)
     try {
       const data = await analyzeFolder(folder)
       setGroups(data.groups)
-      setSelected([])
+      // Auto-select all if auto mode is on
+      if (autoSelect) {
+        const allPaths = Object.values(data.groups).flat().map(img => img.path)
+        setSelected(allPaths)
+      } else {
+        setSelected([])
+      }
       setStep('select')
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally { setLoading(false) }
+  }
+
+  /* Upload dropped/browsed files */
+  const handleUploadFiles = async (files) => {
+    setLoading(true)
+    toast(`Uploading ${files.length} images for stitching…`, 'info')
+    try {
+      const data = await uploadAndAnalyzeForStitch(files)
+      setFolder(data.folder)
+      setGroups(data.groups)
+      // Auto-select all if auto mode is on
+      if (autoSelect) {
+        const allPaths = Object.values(data.groups).flat().map(img => img.path)
+        setSelected(allPaths)
+      } else {
+        setSelected([])
+      }
+      setStep('select')
+      toast(`${data.uploaded_count} images uploaded and analyzed.`, 'success')
     } catch (err) {
       toast(err.message, 'error')
     } finally { setLoading(false) }
@@ -470,7 +936,14 @@ export default function StitchPage() {
       <StepIndicator current={step} />
 
       {step === 'folder' && (
-        <FolderStep folder={folder} setFolder={setFolder} onAnalyze={handleAnalyze} loading={loading} />
+        <FolderStep
+          folder={folder} setFolder={setFolder}
+          onAnalyze={handleAnalyze}
+          onUploadFiles={handleUploadFiles}
+          loading={loading}
+          autoSelect={autoSelect}
+          setAutoSelect={setAutoSelect}
+        />
       )}
 
       {step === 'select' && groups && (
