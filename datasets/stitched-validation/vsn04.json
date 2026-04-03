@@ -1,0 +1,13 @@
+{
+  "original_size": [
+    2859,
+    3248
+  ],
+  "output_size": [
+    2859,
+    3248
+  ],
+  "scale": 1.0,
+  "image_path": "D:\\Research_Dev\\mp-detect\\datasets\\stitched\\stitched_output.png",
+  "label_path": "D:\\Research_Dev\\mp-detect\\datasets\\stitched\\stitched_output.txt"
+}
