@@ -6,7 +6,7 @@ import {
   AlertTriangle, ClipboardList, Loader2, ArrowRight, ChevronDown, ChevronUp,
   Download, Image as ImageIcon, Layers, Maximize, BarChart2, Activity, FileText,
   Microscope, FlaskConical, Hash, Ruler, Circle, Ratio, ShieldCheck, ArrowRightLeft,
-  Printer, X,
+  X,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -727,9 +727,6 @@ function InlineResults({ result, onClose }) {
             </div>
           </div>
           <div className="lab-report-header__actions">
-            <button className="btn btn-outline btn-sm" onClick={() => window.print()}>
-              <Printer size={13} strokeWidth={1.8} /> Print
-            </button>
             <button className="btn btn-primary btn-sm" onClick={handleExport}>
               <Download size={13} strokeWidth={1.8} /> Export JSON
             </button>

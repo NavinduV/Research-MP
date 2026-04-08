@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, Download, Image as ImageIcon,
   Layers, Maximize, BarChart2, Activity, FileText,
   Microscope, FlaskConical, Hash, Ruler, Circle, Ratio,
-  ShieldCheck, ArrowRightLeft, Printer,
+  ShieldCheck, ArrowRightLeft,
 } from 'lucide-react'
 import { imageUrl, maskUrl, originalUrl } from '../api/detect.js'
 
@@ -67,7 +67,7 @@ const GRID      = { strokeDasharray: '3 3', stroke: '#e3e6eb' }
 /* ═══════════════════════════════════════════════════════════════
    LAB REPORT HEADER
    ═══════════════════════════════════════════════════════════════ */
-function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport, onPrint, pipelineMode }) {
+function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport, pipelineMode }) {
   const now = new Date()
   return (
     <div className="lab-report-header">
@@ -103,9 +103,6 @@ function ReportHeader({ jobId, imageCount, unit, pixelToMicron, totalN, onExport
           </div>
         </div>
         <div className="lab-report-header__actions">
-          <button className="btn btn-outline btn-sm" onClick={onPrint}>
-            <Printer size={13} strokeWidth={1.8} /> Print
-          </button>
           <button className="btn btn-primary btn-sm" onClick={onExport}>
             <Download size={13} strokeWidth={1.8} /> Export JSON
           </button>
@@ -699,7 +696,6 @@ export default function ResultsPage() {
     a.download = `mp_report_${job_id.slice(0, 8)}.json`
     a.click()
   }
-  const handlePrint = () => window.print()
 
   /* ── Render ── */
   return (
@@ -708,7 +704,7 @@ export default function ResultsPage() {
       <ReportHeader
         jobId={job_id} imageCount={images.length} unit={unit}
         pixelToMicron={pixelToMicron} totalN={totalN}
-        onExport={handleExport} onPrint={handlePrint}
+        onExport={handleExport}
         pipelineMode={pipelineMode || config.pipeline_mode || 'macro'}
       />
 

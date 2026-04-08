@@ -10,15 +10,47 @@ Usage:
     
     # Near-lossless: convert PNGs to JPEG quality 95
     python src/data_preparation/compress_dataset.py --dir data/yolo_augmented --mode jpeg --quality 95
+
+    # Convert to JPEG and force image size to match a reference train folder
+    python src/data_preparation/compress_dataset.py --dir data/val-macro/yolo_single_aug --mode jpeg --quality 95 --reference-dir data/val-macro/yolo_single/images/train
 """
 
 import argparse
 import cv2
-import os
 from pathlib import Path
 
 
-def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95):
+def _find_reference_size(reference_dir: str):
+    """Return (width, height) from the first readable image in reference_dir."""
+    ref_path = Path(reference_dir)
+    if not ref_path.exists():
+        return None
+
+    image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff'}
+    for img_path in sorted(ref_path.rglob('*')):
+        if img_path.suffix.lower() in image_extensions:
+            img = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+            if img is not None:
+                h, w = img.shape[:2]
+                return (w, h)
+    return None
+
+
+def _resize_if_needed(img, target_size):
+    """Resize image to target_size=(w,h) only when needed."""
+    if target_size is None:
+        return img
+
+    h, w = img.shape[:2]
+    target_w, target_h = target_size
+    if w == target_w and h == target_h:
+        return img
+
+    interp = cv2.INTER_CUBIC if (target_w > w or target_h > h) else cv2.INTER_AREA
+    return cv2.resize(img, (target_w, target_h), interpolation=interp)
+
+
+def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95, reference_dir: str = None):
     """
     Compress images in a dataset directory.
     
@@ -26,8 +58,20 @@ def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95):
         data_dir: Path to dataset (searches images/ subdirectories)
         mode: 'lossless' (optimized PNG) or 'jpeg' (convert to JPEG)
         quality: JPEG quality (only used when mode='jpeg')
+        reference_dir: Optional folder to match image size from (first readable image).
     """
     data_path = Path(data_dir)
+
+    if not data_path.exists():
+        print(f"Input directory not found: {data_dir}")
+        return
+
+    target_size = None
+    if reference_dir:
+        target_size = _find_reference_size(reference_dir)
+        if target_size is None:
+            print(f"Could not read a reference image from: {reference_dir}")
+            return
     
     # Find all image files
     image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff'}
@@ -41,6 +85,8 @@ def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95):
     
     print(f"Found {len(image_files)} images in {data_dir}")
     print(f"Mode: {mode}" + (f" (quality={quality})" if mode == 'jpeg' else ''))
+    if target_size:
+        print(f"Resize target: {target_size[0]}x{target_size[1]} (from {reference_dir})")
     
     total_before = 0
     total_after = 0
@@ -57,6 +103,7 @@ def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95):
                 if img_path.suffix.lower() == '.png':
                     img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
                     if img is not None:
+                        img = _resize_if_needed(img, target_size)
                         cv2.imwrite(str(img_path), img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
                         size_after = img_path.stat().st_size
                         total_after += size_after
@@ -67,25 +114,23 @@ def compress_dataset(data_dir: str, mode: str = 'lossless', quality: int = 95):
                     total_after += size_before  # skip non-PNGs in lossless mode
                     
             elif mode == 'jpeg':
-                if img_path.suffix.lower() in {'.png', '.bmp', '.tiff'}:
-                    img = cv2.imread(str(img_path))
-                    if img is not None:
-                        new_path = img_path.with_suffix('.jpg')
-                        cv2.imwrite(str(new_path), img, [cv2.IMWRITE_JPEG_QUALITY, quality])
-                        
-                        # Update corresponding label file if name changed
-                        # (label files use stem, so .txt name stays the same)
-                        
-                        # Remove original
+                img = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+                if img is not None:
+                    img = _resize_if_needed(img, target_size)
+
+                    # Keep .jpg extension for consistency
+                    new_path = img_path if img_path.suffix.lower() == '.jpg' else img_path.with_suffix('.jpg')
+                    cv2.imwrite(str(new_path), img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+
+                    # Remove original when extension changed
+                    if new_path != img_path and img_path.exists():
                         img_path.unlink()
-                        
-                        size_after = new_path.stat().st_size
-                        total_after += size_after
-                        converted += 1
-                    else:
-                        total_after += size_before
+
+                    size_after = new_path.stat().st_size
+                    total_after += size_after
+                    converted += 1
                 else:
-                    total_after += size_before  # already JPEG
+                    total_after += size_before
             
             if idx % 50 == 0 or idx == len(image_files):
                 saved_mb = (total_before - total_after) / (1024 * 1024)
@@ -119,6 +164,8 @@ if __name__ == '__main__':
                         help='Compression mode (default: lossless)')
     parser.add_argument('--quality', type=int, default=95,
                         help='JPEG quality 1-100 (default: 95, only used with --mode jpeg)')
+    parser.add_argument('--reference-dir', type=str, default=None,
+                        help='Optional reference image folder to enforce output image dimensions')
     
     args = parser.parse_args()
-    compress_dataset(args.dir, args.mode, args.quality)
+    compress_dataset(args.dir, args.mode, args.quality, args.reference_dir)

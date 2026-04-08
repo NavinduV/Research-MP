@@ -31,6 +31,10 @@ const SoilWeightCtx = createContext(null)
 export const useSoilWeight = () => useContext(SoilWeightCtx)
 
 function Layout({ children, mode, setMode }) {
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-mode', mode)
+  }, [mode])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
       <Navbar mode={mode} setMode={setMode} />

@@ -1,5 +1,0 @@
-{
-  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
-  "summary": "Complete step-by-step training guide for the YOLO → Mask R-CNN → EfficientNet pipeline for microplastic detection research. Includes model explanations suitable for a research paper, data labeling workflow, format conversion steps, training commands, and verification procedures.",
-  "updatedAt": "2026-01-24T23:24:15.501724700Z"
-}

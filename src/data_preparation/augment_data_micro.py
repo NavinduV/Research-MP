@@ -1,6 +1,6 @@
 """
 Augment YOLO dataset for Microplastics in Soil.
-Target 800 train images and 200 validation images.
+Target at least 800 train images and 200 validation images.
 
 Usage:
     python src/data_preparation/augment_data_micro.py --input data/micro/yolo_single --output data/micro/yolo_single_aug --target-train 800 --target-val 200
@@ -10,8 +10,6 @@ import argparse
 import shutil
 import cv2
 import yaml
-import math
-import random
 from pathlib import Path
 import albumentations as A
 from tqdm import tqdm
@@ -20,20 +18,27 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Augment Microplastic YOLO dataset to target sizes')
     parser.add_argument('--input', type=str, required=True, help='Input dataset directory')
     parser.add_argument('--output', type=str, required=True, help='Output augmented directory')
-    parser.add_argument('--target-train', type=int, default=800, help='Target number of train images')
-    parser.add_argument('--target-val', type=int, default=200, help='Target number of val images')
+    parser.add_argument('--target-train', type=int, default=800, help='Minimum target number of train images')
+    parser.add_argument('--target-val', type=int, default=200, help='Minimum target number of val images')
     return parser.parse_args()
 
 def get_micro_augmentation_pipeline():
     """
     Augmentation pipeline optimized for microplastics on soil surfaces.
+    Uses reflect padding and avoids black cutout artifacts.
     """
     return A.Compose([
         # Spatial transformations
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomRotate90(p=0.5),
-        A.ShiftScaleRotate(shift_limit=0.06, scale_limit=0.1, rotate_limit=45, p=0.8),
+        A.ShiftScaleRotate(
+            shift_limit=0.06,
+            scale_limit=0.1,
+            rotate_limit=45,
+            border_mode=cv2.BORDER_REFLECT_101,
+            p=0.8,
+        ),
         
         # Color and lighting (soil lighting variability)
         A.OneOf([
@@ -45,13 +50,10 @@ def get_micro_augmentation_pipeline():
         # Noise and blur (microscope/camera irregularities)
         A.OneOf([
             A.GaussianBlur(blur_limit=(3, 5), p=1.0),
-            A.ImageCompression(quality_lower=80, quality_upper=100, p=1.0),
-            A.GaussNoise(var_limit=(10.0, 30.0), p=1.0)
+            A.ImageCompression(quality_range=(80, 100), p=1.0),
+            A.GaussNoise(std_range=(0.03, 0.1), p=1.0),
         ], p=0.4),
-        
-        # Occlusion (simulating being partially buried in soil)
-        A.CoarseDropout(max_holes=6, max_height=8, max_width=8, min_holes=1, min_height=4, min_width=4, fill_value=0, p=0.2),
-        
+
     ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_area=16, min_visibility=0.3))
 
 def load_yolo_labels(label_path):
@@ -92,20 +94,8 @@ def process_split(input_dir, output_dir, split, target_count, transform):
 
     if orig_count == 0:
         return
-        
-    if orig_count >= target_count:
-        print(f"[{split.upper()}] We already have enough. Just copying first {target_count}.")
-        selected_images = images[:target_count]
-        for img_path in tqdm(selected_images):
-            shutil.copy(img_path, img_out_dir / img_path.name)
-            lbl_path = lbl_in_dir / f"{img_path.stem}.txt"
-            if lbl_path.exists():
-                shutil.copy(lbl_path, lbl_out_dir / lbl_path.name)
-            else:
-                (lbl_out_dir / lbl_path.name).write_text("")
-        return
 
-    # 1. Copy all originals first
+    # 1. Copy all originals first (never trim existing images)
     print(f"[{split.upper()}] Copying originals...")
     for img_path in images:
         shutil.copy(img_path, img_out_dir / img_path.name)
@@ -115,12 +105,13 @@ def process_split(input_dir, output_dir, split, target_count, transform):
         else:
             (lbl_out_dir / lbl_path.name).write_text("")
 
-    # 2. Generate augmentations to reach target count
-    needed = target_count - orig_count
+    # 2. Generate augmentations to reach minimum target count
+    needed = max(0, target_count - orig_count)
+    if needed == 0:
+        print(f"[{split.upper()}] Target already met. Kept all originals; no augmentation needed.")
+        return
+
     print(f"[{split.upper()}] Need {needed} specific augmentations.")
-    
-    # Calculate how many augs per image roughly
-    augs_per_image = math.ceil(needed / orig_count)
     
     generated = 0
     pbar = tqdm(total=needed)

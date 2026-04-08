@@ -1,12 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, ChevronDown, ChevronUp, Play, Info, ChevronLeft, ChevronRight, Layers, FlaskConical } from 'lucide-react'
+import { UploadCloud, Image as ImageIcon, X, Settings, SlidersHorizontal, FileImage, Play, Info, ChevronLeft, ChevronRight, Layers, FlaskConical } from 'lucide-react'
 import { useToast, usePipelineMode, usePipelineJob, useStitchFiles, useUploadFiles, useSoilWeight } from '../App.jsx'
 
 const DEFAULTS = {
   yolo_conf: 0.1,
   mask_threshold: 0.5,
-  pixel_to_micron: 1.0,
   crop_padding: 30,
   nms_iou: 0.3,
   use_maskrcnn: true,
@@ -235,7 +234,6 @@ function DropZone({ files, onChange, addBtnRef }) {
 export default function UploadPage() {
   const { files, setFiles } = useUploadFiles()
   const [cfg, setCfg] = useState(DEFAULTS)
-  const [paramsOpen, setParamsOpen] = useState(true)
   const toast = useToast()
   const { mode: pipelineMode } = usePipelineMode()
   const { running, startPipeline } = usePipelineJob()
@@ -254,7 +252,6 @@ export default function UploadPage() {
     files.forEach(f => fd.append('files', f))
     fd.append('yolo_conf',       cfg.yolo_conf)
     fd.append('mask_threshold',  cfg.mask_threshold)
-    fd.append('pixel_to_micron', cfg.pixel_to_micron)
     fd.append('crop_padding',    cfg.crop_padding)
     fd.append('nms_iou',         cfg.nms_iou)
     fd.append('use_maskrcnn',    cfg.use_maskrcnn)
@@ -321,7 +318,7 @@ export default function UploadPage() {
       )}
 
       {/* Top row: Input Images + Parameters side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'stretch' }}>
         {/* Input Images */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
@@ -343,47 +340,37 @@ export default function UploadPage() {
           <DropZone files={files} onChange={setFiles} addBtnRef={dropZoneRef} />
         </div>
 
-        {/* Parameters — collapsible */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: paramsOpen ? '1.25rem' : 0 }}>
-          <button
-            onClick={() => setParamsOpen(o => !o)}
+        {/* Parameters */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div
             style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
               fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem',
               color: 'var(--text-secondary)', fontSize: '0.8125rem', width: '100%',
             }}
           >
             <SlidersHorizontal size={15} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} />
             Parameters
-            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
-              {paramsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </span>
-          </button>
+          </div>
 
-          {paramsOpen && (
-            <>
-              <SliderField label="YOLO Confidence" value={cfg.yolo_conf} onChange={v => set('yolo_conf', v)}
-                min={0.01} max={0.95} step={0.01} unit=""
-                tip="Minimum score a detection must have to be kept." />
-              <SliderField label="Mask Threshold" value={cfg.mask_threshold} onChange={v => set('mask_threshold', v)}
-                min={0.1} max={0.9} step={0.05} unit=""
-                tip="Cutoff for converting mask probabilities into a binary shape." />
-              <SliderField label="Pixel → Micron" value={cfg.pixel_to_micron} onChange={v => set('pixel_to_micron', v)}
-                min={0.1} max={10.0} step={0.1} unit=" µm/px"
-                tip="How many micrometres one pixel represents." />
-              <SliderField label="Crop Padding" value={cfg.crop_padding} onChange={v => set('crop_padding', v)}
-                min={0} max={80} step={1} unit=" px"
-                tip="Extra pixels added around each detected bounding box." />
-              <SliderField label="NMS IoU" value={cfg.nms_iou} onChange={v => set('nms_iou', v)}
-                min={0.05} max={0.9} step={0.05} unit=""
-                tip="Overlap threshold for removing duplicate detections." />
-            </>
-          )}
+          <>
+            <SliderField label="YOLO Confidence" value={cfg.yolo_conf} onChange={v => set('yolo_conf', v)}
+              min={0.01} max={0.95} step={0.01} unit=""
+              tip="Minimum score a detection must have to be kept." />
+            <SliderField label="Mask Threshold" value={cfg.mask_threshold} onChange={v => set('mask_threshold', v)}
+              min={0.1} max={0.9} step={0.05} unit=""
+              tip="Cutoff for converting mask probabilities into a binary shape." />
+            <SliderField label="Crop Padding" value={cfg.crop_padding} onChange={v => set('crop_padding', v)}
+              min={0} max={80} step={1} unit=" px"
+              tip="Extra pixels added around each detected bounding box." />
+            <SliderField label="NMS IoU" value={cfg.nms_iou} onChange={v => set('nms_iou', v)}
+              min={0.05} max={0.9} step={0.05} unit=""
+              tip="Overlap threshold for removing duplicate detections." />
+          </>
         </div>
       </div>
 
       {/* Pipeline toggles + Soil Weight — side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: pipelineMode === 'macro' ? '1fr 1fr' : '1fr', gap: '1.25rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: pipelineMode === 'macro' ? '1fr 1fr' : '1fr', gap: '1.25rem', alignItems: 'stretch' }}>
         {/* Pipeline toggles */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>

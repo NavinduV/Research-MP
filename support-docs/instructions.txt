@@ -1,0 +1,378 @@
+make the environment
+python -m venv env
+
+installing packages:
+pip install -r requirements.txt
+
+###Server start (Dashboard API):
+python -m uvicorn src.api.pipeline_api:app --reload --host 127.0.0.1 --port 8000
+
+#running the full pipeline
+
+
+
+Run label sudio:
+label-studio
+
+test the pipeline:
+python src/pipeline/test_pipeline.py --image dev-test/stitched/s7.png --model all
+
+train yolo:
+# Train with nano model (fastest, good for testing)
+>> python src/train/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 300 --model-size l --batch 
+4 --imgsz 1280
+
+python src/train/train_yolo.py --mode train --data data/yolo_augmented/dataset.yaml --epochs 200 --model-size m --batch 8
+
+Running yolo for real test after trained:
+python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo/weights/best.pt --image "dev-test/stitched/s7.png"
+
+================================================================================
+MASK R-CNN TRAINING (Instance Segmentation)
+================================================================================
+
+# Train Mask R-CNN (uses pseudo-masks from bounding boxes since polygon annotations are not available)
+python src/train/train_maskrcnn.py --mode train --annotations data/annotations/annotations.json --image-dir data/annotations/images --epochs 50 --batch 8 --img-size 1280
+
+# Resume training from checkpoint
+python src/train/train_maskrcnn.py --mode train --annotations data/annotations/annotations.json --image-dir data/annotations/images --epochs 100 --resume experiments/maskrcnn_latest.pth
+
+# Run inference on an image
+python src/train/train_maskrcnn.py --mode predict --model experiments/maskrcnn_best.pth --image "dev-test/stitched/s7.png" --conf 0.5
+
+# NOTE: For best segmentation accuracy, re-annotate images in Label Studio using 
+# Polygon or Brush tools instead of bounding boxes, then export in COCO format.
+
+================================================================================
+YOLO + MASK R-CNN PIPELINE (Recommended for Better Accuracy)
+================================================================================
+
+# Step 1: Prepare training crops from YOLO detections
+python src/train/train_maskrcnn_crops.py --mode prepare --images "dev-test/stitched" --yolo experiments/microplastic_yolo/weights/best.pt --yolo-conf 0.1
+
+# Step 2: Train Mask R-CNN on cropped detections
+python src/train/train_maskrcnn_crops.py --mode train --epochs 50 --batch 8
+
+# Step 3: Run the complete pipeline on an image
+python src/pipeline/pipeline_inference.py --image "dev-test/stitched/s7.png"
+
+# Run pipeline with custom models
+python src/pipeline/pipeline_inference.py --image "dev-test/stitched/s7.png" --yolo experiments/microplastic_yolo/weights/best.pt --maskrcnn experiments/maskrcnn_crops_best.pth
+
+# Run pipeline with ellipse masks only (skip Mask R-CNN, faster)
+python src/pipeline/pipeline_inference.py --image "dev-test/stitched/s7.png" --no-maskrcnn
+
+
+
+#To train yolo crops for Mask R CNN with SAM Model
+python src/data_preparation/sam_auto_annotate.py --mode annotate --crops-dir data/crops --sam-model vit_h --sam-checkpoint sam_vit_h_4b8939.pth
+
+
+# View random samples
+python src/data_preparation/sam_auto_annotate.py --mode visualize --crops-dir data/crops_sam --num-samples 20
+
+
+# Save visualizations to folder
+python src/data_preparation/sam_auto_annotate.py --mode visualize --crops-dir data/crops_sam --save-vis data/mask_previews
+
+
+# Use the new SAM-annotated crops for training
+python src/train/train_maskrcnn_crops.py --mode train --crops-dir data/crops_sam --epochs 50
+
+
+
+
+
+
+
+
+
+#*Worked Commands*
+
+#Train yolo
+python src/train/train_yolo.py --mode train --data data/yolo/dataset.yaml --epochs 
+50 --model-size l --batch 8 --imgsz 1280
+
+#check Yolo
+python src/train/train_yolo.py --mode predict --model experiments/macro/yolo/best.pt --image "datasets\stitched\s2.png" --conf 0.01
+
+
+
+
+# Full image with all detections + EfficientNet refinement
+python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth --no-filter
+
+# Filtered to circular region only (default)
+python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth
+
+
+#Make groundtruth crops from original dataset
+python src/train/train_maskrcnn_crops.py --mode prepare-gt
+
+
+
+#yolo with EfficientNet
+python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s25-2.png" --effnet experiments/efficientnet_best.pth
+
+
+
+
+# 1. Train EfficientNet classifier (uses same crops as Mask R-CNN)
+python src/train/train_effnet.py --mode train --crops-dir data/crops_gt_sam --epochs 50
+
+# 2. Train Mask R-CNN segmenter
+python src/train/train_maskrcnn_crops.py --mode train --crops-dir data/crops_gt_sam --epochs 100
+
+# 3. Evaluate EfficientNet
+python src/train/train_effnet.py --mode val --crops-dir data/crops_gt_sam
+
+# 4. Classify a single crop
+python src/train/train_effnet.py --mode predict --image "data/crops_gt_sam/images/some_crop.png"
+
+
+
+
+
+
+#check with effnet
+python src/train/train_yolo.py --mode predict --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --image "dev-test/stitched/s24.png" --effnet experiments/efficientnet_best.pth  
+
+
+
+#Evaluate Accuracy of Yolo
+python src/train/train_yolo.py --mode val --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml
+
+================================================================================
+DATA AUGMENTATION
+================================================================================
+
+The enhanced augmentation script creates a new dataset with both original + augmented images.
+This is ESSENTIAL for small datasets (< 200 images) to improve accuracy.
+
+# Standard augmentation (10x copies per image, medium severity)
+# Input: 50 train images → Output: 550 train images (50 original + 500 augmented)
+python src/data_preparation/augment_data.py --input data/yolo --output data/yolo_augmented_enhanced --factor 10 --severity medium
+
+# Heavy augmentation for very small datasets (20x copies, more aggressive transforms)
+python src/data_preparation/augment_data.py --input data/yolo --output data/yolo_aug_heavy --factor 20 --severity heavy
+
+# Light augmentation (5x copies, minimal transforms)
+python src/data_preparation/augment_data.py --input data/yolo --output data/yolo_aug_light --factor 5 --severity light
+
+# Also augment validation set (useful for very small datasets < 100 total images)
+python src/data_preparation/augment_data.py --input data/yolo --output data/yolo_augmented --factor 10 --augment-val --val-factor 3
+
+# After augmentation, train with the new dataset
+python src/train/train_yolo.py --mode train --data data/yolo_augmented_enhanced/dataset.yaml --epochs 300 --model-size m --batch 8 --imgsz 1280
+
+# Key benefits:
+# - Includes original data + augmented versions
+# - Smart augmentation preserves small objects (fibers)
+# - Class-aware statistics
+# - 10-20x more effective training data
+# - Better generalization and accuracy
+
+
+
+
+
+#Train EfficientNet
+#1 - cropping dataset for the preparation before training effnet (input dataset - yolo-dir, output directory - crops-dir)
+python src/train/train_maskrcnn_crops.py --mode prepare-gt --yolo-dir data/yolo_augmented --crops-dir data/crops_augmented
+
+#2 - training efficientnet
+python src/train/train_effnet.py --mode train --crops-dir data/crops_augmented 
+--epochs 50
+
+
+
+#Cellpose mask generation
+# Full run
+venv\Scripts\python.exe src/data_preparation/cellpose_auto_annotate.py --mode annotate --crops-dir data/crops --class-aware
+
+# On CPU explicitly (slower)
+venv\Scripts\python.exe src/data_preparation/cellpose_auto_annotate.py --mode annotate --crops-dir data/crops --class-aware --no-gpu
+
+
+
+#Running the full pipeline (per-type Mask R-CNN models)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3  --output "predictions/pipeline_batch_01"
+
+#Optional fallback single Mask R-CNN (used only if one of the 3 type models is missing)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments/macro --maskrcnn experiments/macro/maskrcnn/maskrcnn_crops_best.pth --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
+
+#Run full pipeline on a FOLDER of input images (saves each image output)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --output "results/pipeline_batch_01" --yolo-conf 0.1 --nms-iou 0.3
+
+#Run full pipeline on a FOLDER and auto-create a NEW timestamped output folder (PowerShell)
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$out = "results/pipeline_batch_$ts"
+python src/pipeline/pipeline_inference.py --image "datasets/stitched" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --output "$out" --yolo-conf 0.1 --nms-iou 0.3
+
+
+
+
+
+#view images with labels
+
+python src/data_preparation/view_external_datasets.py --dataset seamap
+
+
+
+
+#Run pipeline with per-type Mask R-CNN routing (auto-discovers models)
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --yolo experiments/macro/yolo/best.pt --effnet experiments/macro/efficientnet/efficientnet_best.pth --yolo-conf 0.1 --nms-iou 0.3
+
+#Run pipeline with custom model directory
+python src/pipeline/pipeline_inference.py --image "datasets/stitched/s1.png" --maskrcnn-dir experiments/macro --yolo experiments/macro/yolo/best.pt
+
+
+
+
+
+###Splitting datasets of mask-r-cnn mp types
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_fiber_sam" --output "data/macro/crops_fiber_sam_split"
+
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_fragment_sam" --output "data/macro/crops_fragment_sam_split"
+
+python src/data_preparation/split_maskrcnn_dataset.py --input "data/macro/crops_film_sam" --output "data/macro/crops_film_sam_split"
+
+
+###Evaluating Mask-R-CNN Accuracies
+python src/train/eval_maskrcnn.py --model experiments/macro/maskrcnn_fiber/maskrcnn_fiber_best.pth --crops_dir data/macro/crops_fiber_sam_split/val
+
+
+###Micro Data Preprocessing
+###Option A: Flat micro YOLO dataset (no train/val split yet)
+python src/data_preparation/convert_yolo_single_class_micro.py --input data/micro/yolo --output data/micro/yolo_single --split-ratio 0.8
+python src/data_preparation/augment_data_micro.py --input data/micro/yolo_single --output data/micro/yolo_single_aug --target-train 800 --target-val 200
+
+###Option B: Already split YOLO dataset (train/val/test exists)
+python src/data_preparation/convert_yolo_single_class.py --input data/yolo --output data/yolo_single
+
+python src/data_preparation/augment_data_micro.py --input data/yolo_single --output data/yolo_single_aug --target-train 800 --target-val 200
+# This augments BOTH train and val splits and keeps all existing images unchanged.
+# It only adds new augmented samples when a split is below its target.
+
+###Important
+Use augment_data_micro.py for single-class datasets.
+augment_data.py is for 3-class datasets and writes nc: 3 in dataset.yaml.
+
+###Compress YOLO images then augment (single-class)
+# Recommended: copy first because compression runs in-place
+Copy-Item -Recurse -Force "data\yolo_single" "data\yolo_single_comp"
+
+# Option 1: Lossless PNG recompression
+python src/data_preparation/compress_dataset.py --dir data/yolo_single_comp --mode lossless
+
+# Option 2: Near-lossless JPEG conversion
+python src/data_preparation/compress_dataset.py --dir data/yolo_single_comp --mode jpeg --quality 95 --reference-dir data/yolo_single/images/train
+
+# Augment compressed dataset (train + val)
+python src/data_preparation/augment_data_micro.py --input data/yolo_single_comp --output data/yolo_single_comp_aug --target-train 800 --target-val 200
+
+# (Optional) compress augmented output as final step (JPG + match original train image size)
+python src/data_preparation/compress_dataset.py --dir data/yolo_single_comp_aug --mode jpeg --quality 95 --reference-dir data/yolo_single/images/train
+
+###Compress then augment (val-macro example)
+Copy-Item -Recurse -Force "data\val-macro\yolo_single" "data\val-macro\yolo_single_comp"
+python src/data_preparation/compress_dataset.py --dir data/val-macro/yolo_single_comp --mode jpeg --quality 95 --reference-dir data/val-macro/yolo_single/images/train
+python src/data_preparation/augment_data_micro.py --input data/val-macro/yolo_single_comp --output data/val-macro/yolo_single_comp_aug --target-train 800 --target-val 200
+
+# Optional final step for val-macro (JPG + same train image size)
+python src/data_preparation/compress_dataset.py --dir data/val-macro/yolo_single_comp_aug --mode jpeg --quality 95 --reference-dir data/val-macro/yolo_single/images/train
+
+
+###MAking Crops from yolo dataset
+python src\data_preparation\extract_crops_micro.py --yolo-dir "data\micro\yolo" --output "data\micro\crops"
+
+###Augmenting the created crops for efficientnet training
+python src\data_preparation\augment_crops_micro.py --input "data\micro\crops" --output "data\micro\crops_augmented"
+# Upscale output crops while augmenting (example: 2x)
+python src\data_preparation\augment_crops_micro.py --input "data\micro\crops" --output "data\micro\crops_augmented_x2" --upscale-factor 2.0
+
+
+
+###Stitching (Auto-Backend-cmd)
+$inputFolder = "datasets/raw/Sample1/Macro"
+$outputFolder = "datasets/stitched_auto"
+$outputFile = "s1_auto.png"
+New-Item -ItemType Directory -Force -Path $outputFolder | Out-Null
+python src/img_preprocess/macro_stitch_pipeline.py $inputFolder (Join-Path $outputFolder $outputFile) --max-dim 8192 --max-stitch-dim 8192 --auto-wb --denoise 8 --sharpen 0.8
+py $inputFolder (Join-Path $outputFolder $outputFile) --max-dim 8192 --max-stitch-dim 8192 --auto-wb --denoise 8 --sharpen 0.8
+
+
+
+
+
+================================================================================
+Label Studio setup for mask r-cnn
+================================================================================
+
+###Start label studio:
+$env:LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED="true"
+$env:LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT="D:\Research_Dev\mp-detect\data\micro\crops"
+$env:DATA_UPLOAD_MAX_NUMBER_FILES="10000"
+label-studio start --port 8080
+
+
+###Create projects:
+pip install label-studio-sdk
+python src/data_preparation/setup_labelstudio.py --url http://localhost:8080 --api-key <YOUR_TOKEN>
+
+###Create projects-only:
+pip install label-studio-sdk
+python src/data_preparation/setup_labelstudio.py --projects-only --url http://localhost:8080 --api-key <YOUR_TOKEN>
+
+#Access Token for Label Studio (Mine)
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA4MDAwNjU1NCwiaWF0IjoxNzcyODA2NTU0LCJqdGkiOiJiOTMyMTYxOGI1M2E0ZjA2OWZhMmYzNmQ5MWIxMjVlNCIsInVzZXJfaWQiOiIxIn0.mNVLK6BXfZiA_7oNNO9OCK7RRIdzSqY2QCL3ojsQMt0
+
+#Manual export labelme mp crop types for maskrcnn
+python src/data_preparation/export_labelstudio.py --email researchmicroplastic@gmail.com --password "ResearchMP21844;" --types fiber
+
+
+###Evaluating YOLO Accuracies (Detailed Metrics)
+# Full validation split
+python src/train/eval_yolo.py --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml --split val --conf-threshold 0.1 --iou-threshold 0.5 --imgsz 1280 --batch-size 8 --save-json results/eval/yolo_metrics.json
+
+# Quick check (first 50 images)
+python src/train/eval_yolo.py --model experiments/microplastic_yolo_max_accuracy/weights/best.pt --data data/yolo/dataset.yaml --split val --max-images 50 --conf-threshold 0.1 --iou-threshold 0.5
+
+
+###Evaluating EfficientNet Accuracies (Detailed Metrics)
+# Validation split
+python src/train/eval_effnet.py --model experiments/macro/efficientnet/efficientnet_best.pth --crops-dir data/macro/crops --split val --batch-size 16 --save-json results/eval/effnet_metrics.json
+
+# Evaluate all samples (use when split folders are not available)
+python src/train/eval_effnet.py --model experiments/efficientnet/efficientnet_best.pth --crops-dir data/crops_gt_sam --split all --batch-size 16
+
+
+================================================================================
+WORKING DEMO SCRIPTS (FOR PRESENTATION)
+================================================================================
+
+Use these 3 scripts to show each stage clearly and separately.
+
+1) FILTER ONLY (no YOLO, no EfficientNet, no Mask R-CNN)
+Shows only filter detection and outputs the message style:
+Detected filter: center=(1225, 1261), radius=1132, method=edge-Hough
+
+python src/pipeline/demo_filter_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" 
+
+
+2) YOLO ONLY (MP labels from YOLO)
+Runs only YOLO detection and outputs the model's native class label(s) (for single-class models: microplastic).
+
+python src/pipeline/demo_yolo_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" --yolo-model "experiments/macro/yolo/best.pt"
+
+
+3) YOLO + EFFICIENTNET ONLY (no Mask R-CNN)
+Runs YOLO detection, then EfficientNet classification refinement only.
+
+python src/pipeline/demo_yolo_effnet_only.py --image "data\macro\yolo\images\val\13f013f8-s31-2.png" --yolo-model "experiments/macro/yolo/best.pt" --effnet-model "experiments/macro/efficientnet/efficientnet_best.pth"
+
+
+Default outputs:
+- prediction/demo_filter_only
+- prediction/demo_yolo_only
+- prediction/demo_yolo_effnet_only

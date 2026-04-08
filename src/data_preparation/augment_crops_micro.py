@@ -9,6 +9,7 @@ import numpy as np
 import albumentations as A
 from tqdm import tqdm
 
+
 def get_augmenter():
     return A.Compose([
         A.HorizontalFlip(p=0.5),
@@ -19,7 +20,19 @@ def get_augmenter():
         A.GaussianBlur(blur_limit=(3, 5), p=0.2)
     ])
 
-def augment_and_save(input_dir, output_dir, train_target=800, val_target=200):
+
+def maybe_upscale(img, upscale_factor=1.0):
+    """Upscale image by factor (>1.0). Returns original image when factor is 1.0."""
+    if upscale_factor <= 1.0:
+        return img
+
+    h, w = img.shape[:2]
+    new_w = max(1, int(round(w * upscale_factor)))
+    new_h = max(1, int(round(h * upscale_factor)))
+    return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+
+
+def augment_and_save(input_dir, output_dir, train_target=800, val_target=200, upscale_factor=1.0):
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     
@@ -57,6 +70,7 @@ def augment_and_save(input_dir, output_dir, train_target=800, val_target=200):
                 img = cv2.imread(str(img_path))
                 if img is None:
                     continue
+                img = maybe_upscale(img, upscale_factor)
                 h, w = img.shape[:2]
                 
                 new_name = img_path.name
@@ -84,6 +98,7 @@ def augment_and_save(input_dir, output_dir, train_target=800, val_target=200):
                 if img is None: continue
                 
                 aug_img = augmenter(image=img)['image']
+                aug_img = maybe_upscale(aug_img, upscale_factor)
                 h, w = aug_img.shape[:2]
                 base_name = src_path.stem
                 aug_name = f"{base_name}_trainaug{i:04d}{src_path.suffix}"
@@ -109,6 +124,7 @@ def augment_and_save(input_dir, output_dir, train_target=800, val_target=200):
                 if img is None: continue
                 
                 aug_img = augmenter(image=img)['image']
+                aug_img = maybe_upscale(aug_img, upscale_factor)
                 h, w = aug_img.shape[:2]
                 base_name = src_path.stem
                 aug_name = f"{base_name}_valaug{i:04d}{src_path.suffix}"
@@ -140,12 +156,17 @@ def main():
     parser.add_argument('--output', type=str, required=True)
     parser.add_argument('--train-target', type=int, default=800)
     parser.add_argument('--val-target', type=int, default=200)
+    parser.add_argument('--upscale-factor', type=float, default=1.0,
+                        help='Upscale factor for output images (e.g., 1.5 or 2.0). 1.0 keeps original size.')
     args = parser.parse_args()
+
+    if args.upscale_factor <= 0:
+        raise ValueError("--upscale-factor must be > 0")
     
     random.seed(42)
     np.random.seed(42)
     
-    augment_and_save(args.input, args.output, args.train_target, args.val_target)
+    augment_and_save(args.input, args.output, args.train_target, args.val_target, args.upscale_factor)
 
 if __name__ == '__main__':
     main()
